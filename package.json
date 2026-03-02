@@ -1,0 +1,15 @@
+{
+  "name": "forge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal AI development workflow for Claude Code",
+  "scripts": {
+    "build": "pnpm --filter ./server build",
+    "test": "pnpm --filter ./server test",
+    "lint": "pnpm --filter ./server lint",
+    "typecheck": "pnpm --filter ./server typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
