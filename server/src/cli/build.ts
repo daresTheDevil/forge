@@ -1,0 +1,285 @@
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { EventEmitter } from 'node:events';
+import { parsePlanFiles } from './parser.js';
+import { spawnClaude, buildTaskPrompt } from './spawn.js';
+import { createTui } from './tui.js';
+import { attachDisplay } from './display.js';
+import type { BuildState, PlanFile, TaskState } from './types.js';
+
+// ── Pure helpers (exported for testing) ──────────────────────────────────────
+
+export function groupByWave(plans: PlanFile[]): Map<number, PlanFile[]> {
+  const map = new Map<number, PlanFile[]>();
+  for (const plan of plans) {
+    const wave = plan.frontmatter.wave;
+    if (!map.has(wave)) map.set(wave, []);
+    map.get(wave)!.push(plan);
+  }
+  return map;
+}
+
+export function writeBlocker(stateDir: string, taskState: TaskState): void {
+  mkdirSync(stateDir, { recursive: true });
+  const lines = [
+    '# Build Blocker',
+    '',
+    `**Task**: ${taskState.planSlug} / task-${taskState.taskIndex}`,
+    `**Failed at**: ${new Date().toISOString()}`,
+    `**Attempts**: ${taskState.attempts}`,
+    '',
+    '## Failure Log',
+    '',
+    ...taskState.failureReasons.flatMap((reason, i) => [
+      `### Attempt ${i + 1}`,
+      reason,
+      '',
+    ]),
+    '## Next Steps',
+    '1. Review the failure log above',
+    '2. Fix the blocking issue manually',
+    '3. Delete `.forge/state/BLOCKER.md`',
+    '4. Run `forge build` to retry',
+  ];
+  writeFileSync(path.join(stateDir, 'BLOCKER.md'), lines.join('\n'));
+}
+
+export function formatSummary(state: BuildState, improveRan: boolean): string {
+  const elapsed = Math.round((Date.now() - new Date(state.startedAt).getTime()) / 1000);
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  const timeStr = `${mins}m ${String(secs).padStart(2, '0')}s`;
+
+  const lines: string[] = [
+    '─'.repeat(50),
+    '',
+  ];
+
+  if (state.blockedTask) {
+    lines.push(`  BLOCKED`);
+    lines.push(`  Task ${state.blockedTask.planSlug}/task-${state.blockedTask.taskIndex} failed ${state.blockedTask.attempts} attempts`);
+    lines.push(`  See: .forge/state/BLOCKER.md`);
+    if (state.completedTasks.length > 0) {
+      lines.push('');
+      lines.push(`  Also completed: ${state.completedTasks.length} task(s)`);
+    }
+    lines.push('');
+    lines.push('  Next: resolve BLOCKER.md and re-run');
+  } else {
+    lines.push(`  Build complete`);
+    lines.push(`  Tasks completed: ${state.completedTasks.length}/${state.totalTasks}`);
+    lines.push(`  Files modified:  ${state.filesModified.length}`);
+    lines.push(`  Time elapsed:    ${timeStr}`);
+    if (improveRan) lines.push('  improve pass:    ran');
+    lines.push('');
+    lines.push('  Next: run /forge:review');
+  }
+
+  lines.push('');
+  lines.push('─'.repeat(50));
+  return lines.join('\n');
+}
+
+// ── Build options ─────────────────────────────────────────────────────────────
+
+export interface BuildOptions {
+  plansDir?: string;
+  cwd?: string;
+  /** Skip TUI and actual claude invocation — for testing */
+  dryRun?: boolean;
+}
+
+// ── Main build loop ───────────────────────────────────────────────────────────
+
+export async function runBuild(opts: BuildOptions = {}): Promise<number> {
+  const cwd = opts.cwd ?? process.cwd();
+  const plansDir = opts.plansDir ?? path.join(cwd, '.forge', 'plans');
+  const stateDir = path.join(cwd, '.forge', 'state');
+
+  // Check plans directory exists
+  if (!existsSync(plansDir)) {
+    process.stderr.write(
+      `[forge] No plans directory found at ${plansDir}\n` +
+      `[forge] Run /forge:plan inside Claude Code to create a plan first.\n`
+    );
+    return 1;
+  }
+
+  // Load plans
+  const allPlans = parsePlanFiles(plansDir);
+  const autonomousPlans = allPlans.filter(p => p.frontmatter.autonomous);
+
+  if (autonomousPlans.length === 0) {
+    process.stdout.write('[forge] No autonomous tasks found — nothing to run.\n');
+    return 0;
+  }
+
+  // Count total autonomous tasks
+  const totalTasks = autonomousPlans.reduce((sum, p) => sum + p.tasks.length, 0);
+
+  if (opts.dryRun) return 0;
+
+  // Initialize build state
+  const buildState: BuildState = {
+    startedAt: new Date().toISOString(),
+    completedTasks: [],
+    blockedTask: null,
+    filesModified: [],
+    totalTasks,
+    doneCount: 0,
+  };
+
+  // Check for CLAUDECODE guard
+  if (process.env['CLAUDECODE']) {
+    process.stderr.write(
+      '[forge] forge build cannot run inside an active Claude Code session.\n' +
+      '[forge] Open a separate terminal outside Claude Code and run: forge build\n'
+    );
+    return 1;
+  }
+
+  // Initialize TUI
+  const tui = createTui();
+  const firstPlan = autonomousPlans[0]!;
+  tui.init({
+    taskId: firstPlan.frontmatter.slug,
+    taskTitle: firstPlan.frontmatter.slug,
+    stage: 'RED',
+    done: 0,
+    total: totalTasks,
+  });
+
+  let improveRan = false;
+  let interrupted = false;
+
+  process.once('SIGINT', () => {
+    interrupted = true;
+    tui.destroy();
+    process.stdout.write('\n[forge] Build interrupted.\n');
+    process.exit(130);
+  });
+
+  try {
+    // Execute waves in order
+    const waveMap = groupByWave(autonomousPlans);
+    const waveNumbers = [...waveMap.keys()].sort((a, b) => a - b);
+
+    waveLoop: for (const waveNum of waveNumbers) {
+      if (interrupted) break;
+      const wavePlans = waveMap.get(waveNum)!;
+
+      tui.appendLog(`\n  Wave ${waveNum}`);
+
+      for (const plan of wavePlans) {
+        if (interrupted) break waveLoop;
+
+        for (let taskIndex = 0; taskIndex < plan.tasks.length; taskIndex++) {
+          if (interrupted) break waveLoop;
+
+          const task = plan.tasks[taskIndex]!;
+          const planSlug = plan.frontmatter.slug;
+          const MAX_ATTEMPTS = 3;
+          let taskDone = false;
+          const failureReasons: string[] = [];
+
+          tui.appendLog(`\n  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+          tui.appendLog(`  Task ${buildState.doneCount + 1}/${totalTasks} — ${planSlug}`);
+
+          tui.updateTask({
+            taskId: `${planSlug}/${taskIndex}`,
+            taskTitle: task.action.slice(0, 60),
+            stage: 'RED',
+            done: buildState.doneCount,
+            total: totalTasks,
+            attempt: 1,
+            maxAttempts: MAX_ATTEMPTS,
+          });
+
+          for (let attempt = 1; attempt <= MAX_ATTEMPTS && !taskDone && !interrupted; attempt++) {
+            if (attempt > 1) {
+              tui.appendLog(`  ↻ Retry attempt ${attempt}/${MAX_ATTEMPTS}`);
+            }
+            tui.updateTask({ attempt, maxAttempts: MAX_ATTEMPTS });
+
+            const prompt = buildTaskPrompt(task, planSlug, taskIndex + 1, plan.tasks.length);
+            const emitter = new EventEmitter();
+            const ctx = attachDisplay(emitter, { tui });
+
+            const exitCode = await spawnClaude(prompt, emitter, {
+              cwd,
+              taskType: task.type,
+            });
+
+            // Accumulate modified files from display context
+            for (const f of ctx.stats.filesModified) {
+              if (!buildState.filesModified.includes(f)) {
+                buildState.filesModified.push(f);
+              }
+            }
+
+            // Verify using the task's <verify> command
+            const verifyResult = spawnSync('sh', ['-c', task.verify], {
+              cwd,
+              encoding: 'utf-8',
+              timeout: 60_000,
+            });
+
+            if (verifyResult.status === 0) {
+              taskDone = true;
+              buildState.doneCount++;
+              const taskState: TaskState = {
+                planSlug,
+                taskIndex,
+                status: 'completed',
+                attempts: attempt,
+                failureReasons: [],
+              };
+              buildState.completedTasks.push(taskState);
+              tui.updateTask({ done: buildState.doneCount, stage: 'CHECKPOINT' });
+              tui.appendLog(`  ✓ Task ${taskIndex + 1} complete`);
+            } else {
+              const reason = exitCode !== 0
+                ? `claude exited with code ${exitCode}`
+                : `verify command failed (exit ${verifyResult.status}): ${verifyResult.stderr?.slice(0, 200) ?? ''}`;
+              failureReasons.push(reason);
+              tui.appendLog(`  ⚠ Attempt ${attempt} failed — ${reason.slice(0, 100)}`);
+            }
+          }
+
+          if (!taskDone && !interrupted) {
+            const taskState: TaskState = {
+              planSlug,
+              taskIndex,
+              status: 'blocked',
+              attempts: MAX_ATTEMPTS,
+              failureReasons,
+            };
+            buildState.blockedTask = taskState;
+            writeBlocker(stateDir, taskState);
+            tui.appendLog(`\n  BLOCKED: task-${taskIndex + 1} of ${planSlug} failed ${MAX_ATTEMPTS} attempts`);
+            tui.appendLog('  Blocker report: .forge/state/BLOCKER.md');
+            break waveLoop;
+          }
+        }
+      }
+    }
+
+  } finally {
+    tui.destroy();
+  }
+
+  // Write last-build.json for `forge improve` with no args
+  if (!buildState.blockedTask && buildState.filesModified.length > 0) {
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(
+      path.join(stateDir, 'last-build.json'),
+      JSON.stringify({ filesModified: buildState.filesModified, completedAt: new Date().toISOString() }, null, 2)
+    );
+  }
+
+  // Print post-TUI summary
+  process.stdout.write(formatSummary(buildState, improveRan) + '\n');
+
+  return buildState.blockedTask ? 1 : 0;
+}
