@@ -218,6 +218,11 @@ if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
   warn '  export PATH="$HOME/.local/bin:$PATH"'
 fi
 
+# ─── Write version marker for statusline ──────────────────────────────────────
+FORGE_VERSION_TAG=$(git -C "$FORGE_DIR" describe --tags --abbrev=0 2>/dev/null || echo "dev")
+mkdir -p "$HOME/.forge"
+echo "$FORGE_VERSION_TAG" > "$HOME/.forge/version"
+
 # ─── Done ─────────────────────────────────────────────────────────────────────
 header "Installation complete!"
 echo ""
