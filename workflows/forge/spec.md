@@ -93,12 +93,19 @@ Typical range: 3-8 requirements per spec.]
 
 Show the full spec to the user.
 
-Say: "Does this spec look correct? Type 'approve' to save it, 'edit [what to change]' to
-revise a section, or 'back' to go back to /forge:discuss."
+Use the AskUserQuestion tool with:
+  - Approve: The spec is correct — save it and proceed to planning
+  - Request changes: Something needs to be revised — you will describe what to change
+  - Back to discuss: Return to /forge:discuss to revisit implementation decisions
+
+If the user selects "Other" and provides an explanation, read it carefully. If they describe
+a specific change, treat it as "Request changes" and apply the revision directly. If they
+describe a broader concern about the approach, treat it as "Back to discuss". Ask a
+follow-up question if the intent is unclear.
 
 ## Step 4: Handle user response
 
-### If user types 'approve' (or 'y' or 'yes' or 'looks good'):
+### If user selects "Approve":
 
 Update Status to APPROVED.
 Write the spec to `.forge/specs/[task-slug]-SPEC.md`.
@@ -123,16 +130,19 @@ Requirements defined: [REQ-001, REQ-002, ...]
 Next: run /forge:plan to decompose this into an implementation graph.
 ```
 
-### If user types 'edit [description]':
+### If user selects "Request changes":
 
-Revise the specific section the user described.
+Ask the user to describe what needs to change. Revise the specific section they describe.
 Show the revised section only.
-Ask: "Better? [approve / continue editing]"
+
+Use the AskUserQuestion tool with:
+  - Looks good: Accept the revision and proceed to approve
+  - Keep editing: There is more to change — describe what
 
 Repeat until the user approves.
 Then proceed with the approve flow above.
 
-### If user types 'back':
+### If user selects "Back to discuss":
 
 Tell the user: "OK. Run /forge:discuss to revisit the decisions."
 Update `.forge/state/current.md`:

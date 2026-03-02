@@ -25,12 +25,15 @@ If `git status --short` shows uncommitted changes:
   ```
   You have uncommitted changes:
   [list of changed files]
-
-  Commit them before handoff? [y/n]
   ```
 
-  If yes: guide the user to commit with an appropriate message.
-  If no: note them in the handoff document as "uncommitted changes present".
+  Use the AskUserQuestion tool with:
+    - Yes, commit now: Guide the user to commit with an appropriate message before continuing
+    - No, leave unstaged: Note the uncommitted changes in the handoff document as "uncommitted changes present"
+
+  If the user selects "Other" and provides an explanation, read it carefully and determine
+  whether it represents a conditional yes (e.g. "commit only these specific files"), a
+  conditional no, or a request for more context. Adapt accordingly rather than defaulting.
 
 ## Step 3: Write the handoff document
 

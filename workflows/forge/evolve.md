@@ -85,18 +85,28 @@ Analyzed [N] active instincts:
    ...
 
 ══════════════════════════════════════════════════
-Accept all classifications? [y/n]
-Or enter overrides (e.g. "1:agent 3:skill 4:discard"):
-```
 
-## Step 4: Wait for user approval
+Use the AskUserQuestion tool with:
+  - Accept all: All classifications look correct — proceed to generate artifacts
+  - Review each one: Walk through each classification individually before committing
+  - Override some: Apply specific manual overrides (you will specify which to change)
 
-Wait for user input.
+If the user selects "Other" and provides an explanation, read it carefully. If they specify
+overrides in the format `N:type` (e.g., "1:agent 3:skill"), apply those corrections directly.
+If they describe a concern about a specific item, address it. Ask a follow-up question if
+the intent is unclear.
 
-If "n": Ask which ones to override. Accept corrections in format `N:type`.
-Continue after corrections are entered.
+## Step 4: Apply overrides if needed
 
-If "y" or after corrections: proceed to Step 5.
+If user selected "Review each one":
+  Walk through each instinct individually, showing the proposed classification.
+  For each, confirm with the user or accept a different classification before proceeding.
+
+If user selected "Override some":
+  Ask: "Which ones to override? (e.g. '1:agent 3:skill 4:discard'):"
+  Wait for input. Apply the corrections.
+
+Proceed to Step 5 after all classifications are finalized.
 
 ## Step 5: Generate artifacts
 

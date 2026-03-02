@@ -77,13 +77,16 @@ Display it to the user in full.
 
 ## Step 5: Ask for confirmation
 
-After displaying the report:
-```
-──────────────────────────────────────────────────
-Was the root cause identified? [y/n]:
-```
+After displaying the report, use the AskUserQuestion tool with:
+  - Yes, root cause found: The diagnosis identified the problem — proceed to fix options
+  - No, still investigating: The diagnosis was inconclusive — next steps for further investigation
+  - Partially — need more info: Something was identified but more investigation is needed
 
-If "y":
+If the user selects "Other" and provides an explanation, read it carefully and determine
+whether it represents a confirmed root cause, an inconclusive result, or a need for more
+context. Ask a follow-up question if the intent is unclear.
+
+If user selects "Yes, root cause found":
 ```
 Root cause confirmed. Ready to fix?
 
@@ -93,7 +96,7 @@ Options:
   /forge:fire    — if this turns out to be a production incident
 ```
 
-If "n":
+If user selects "No, still investigating" or "Partially — need more info":
 ```
 Diagnosis inconclusive. Options:
 
@@ -105,7 +108,7 @@ Diagnosis inconclusive. Options:
 
 ## Step 6: Write diagnosis entry to audit trail (if root cause found)
 
-If root cause was confirmed, append to `.forge/compliance/audit-trail.md`:
+If user selected "Yes, root cause found", append to `.forge/compliance/audit-trail.md`:
 ```
 | [ISO timestamp] | diagnose:complete | forge | [failure_description] → .forge/state/diagnose-[slug].md |
 ```

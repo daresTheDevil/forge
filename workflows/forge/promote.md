@@ -73,7 +73,7 @@ If numbers or "all": proceed with selected patterns.
 
 ## Step 4: Confirm each selection
 
-For each selected pattern, show the content and ask:
+For each selected pattern, show the content:
 ```
 Promoting: [title]
 
@@ -81,10 +81,18 @@ Promoting: [title]
   Pattern: [pattern content — first 5 lines]
 
 This will be available in ALL projects on this machine.
-Is this general enough to promote? [y/n]
 ```
 
-Only proceed with "y" responses. For "n" responses, skip silently.
+Use the AskUserQuestion tool with:
+  - Yes, promote it: Copy this pattern to global scope — it applies beyond this project
+  - No, keep project-scoped: Skip this pattern — it's too specific to this codebase
+
+If the user selects "Other" and provides an explanation, read it carefully and determine
+whether it represents a conditional yes (e.g. "promote but generalize the wording"), a
+conditional no (e.g. "only useful in this codebase because of X"), or a need for more context.
+Ask a follow-up question if the intent is unclear.
+
+Only proceed with "Yes, promote it" responses. For "No, keep project-scoped" skip silently.
 
 If zero patterns were confirmed after asking:
 ```

@@ -134,10 +134,16 @@ Describe what was done to isolate:
 ```
 Wait. Record as `isolation_detail`.
 
-```
-Is the bleeding stopped? Is impact stabilized? [y/n]:
-```
-Wait. If "n", ask again and repeat the isolation step.
+Use the AskUserQuestion tool with:
+  - Yes, contained: Impact is stabilized — proceed to root cause diagnosis
+  - No, still active: Isolation did not fully stop the incident — try another action
+  - Partially mitigated: Impact is reduced but not fully contained — describe what remains
+
+If the user selects "Other" and provides an explanation, read it carefully and determine
+whether it represents containment, continued spread, or partial mitigation. Ask a
+follow-up question if the intent is unclear.
+
+If "No, still active" or "Partially mitigated": repeat the isolation step until contained.
 
 Once "y":
 Add to timeline:
@@ -161,44 +167,67 @@ Goal: structured root-cause analysis. Not guessing — evidence.
 Read `.forge/map/infra.md` if it exists — understand the system topology before
 asking the user to dig through logs.
 
-Ask the user to investigate in this order. For each check, ask if the user wants
-to run it now or skip it (some checks won't apply to every incident).
+Work through each check in order. Each check must produce evidence before moving to the next.
 
-```
-DIAGNOSE — Root Cause Analysis
-──────────────────────────────────────────────────
-Work through these checks in order. Each check must produce evidence
-before moving to the next.
+Display: "DIAGNOSE — Root Cause Analysis"
 
-Check 1: Recent deploys / changes
-  What changed in the last 2 hours? (git log, deploy history, config changes)
-  Suspicion: [y/n]?
+**Check 1: Recent deploys / changes**
+Ask: "What changed in the last 2 hours? (git log, deploy history, config changes)"
+Wait for free-text response.
+Then use the AskUserQuestion tool with:
+  - Yes, suspect: Recent changes are a likely cause — flag this for root cause
+  - No, clear: Recent changes are not the cause
+  - Uncertain: More investigation needed on this vector
 
-Check 2: Error logs
-  What do the logs say? (app logs, error tracking, k8s events)
-  Paste key lines or describe findings:
-  >
+If the user selects "Other" and provides an explanation, record their assessment faithfully.
 
-Check 3: Environment and config
-  Are env vars and config correct? Did anything change recently?
-  Suspicion: [y/n]?
+**Check 2: Error logs**
+Ask: "What do the logs say? (app logs, error tracking, k8s events) — paste key lines or describe findings:"
+Wait for free-text response. Record the findings. No suspicion vote needed — logs provide direct evidence.
 
-Check 4: Dependencies
-  Did any service this depends on change or go down?
-  Suspicion: [y/n]?
+**Check 3: Environment and config**
+Ask: "Are env vars and config correct? Did anything change recently?"
+Wait for free-text response.
+Then use the AskUserQuestion tool with:
+  - Yes, suspect: Environment or config changes are a likely cause
+  - No, clear: Environment and config look correct
+  - Uncertain: More investigation needed on this vector
 
-Check 5: Data
-  Is there a data anomaly (bad record, null where not expected, migration issue)?
-  Suspicion: [y/n]?
-──────────────────────────────────────────────────
-Root cause identified? [y/n]:
-```
+If the user selects "Other" and provides an explanation, record their assessment faithfully.
 
-Wait for response. If "y":
-```
-State the root cause:
->
-```
+**Check 4: Dependencies**
+Ask: "Did any service this depends on change or go down?"
+Wait for free-text response.
+Then use the AskUserQuestion tool with:
+  - Yes, suspect: A dependency change or outage is a likely cause
+  - No, clear: Upstream services look healthy
+  - Uncertain: More investigation needed on this vector
+
+If the user selects "Other" and provides an explanation, record their assessment faithfully.
+
+**Check 5: Data**
+Ask: "Is there a data anomaly? (bad record, null where not expected, migration issue)"
+Wait for free-text response.
+Then use the AskUserQuestion tool with:
+  - Yes, suspect: A data issue is a likely cause
+  - No, clear: Data looks correct
+  - Uncertain: More investigation needed on this vector
+
+If the user selects "Other" and provides an explanation, record their assessment faithfully.
+
+**Root cause check:**
+Use the AskUserQuestion tool with:
+  - Yes, confirmed: Root cause has been identified — you will state it
+  - No, still investigating: Evidence is insufficient — more digging needed
+  - Partially: A candidate was identified but not fully confirmed
+
+If the user selects "Other" and provides an explanation, read it carefully and determine
+whether it represents a confirmed cause, an inconclusive result, or a partial identification.
+Ask a follow-up question if the intent is unclear.
+
+If "Yes, confirmed":
+Ask: "State the root cause:"
+Wait for free-text response.
 Record as `root_cause`.
 
 Add to timeline:
@@ -261,30 +290,50 @@ VERIFY — Confirm Fix and Stability
 Verify each of the following before declaring resolution:
 ```
 
-Ask in sequence:
+Ask each verification check in sequence. Do not proceed to the next check until the
+current one passes.
 
-```
-1. Does the specific failure no longer occur?
-   (Test the exact scenario that broke) [y/n]:
-```
+**Check 1: Does the specific failure no longer occur?**
+Tell the user: "Test the exact scenario that broke."
+Use the AskUserQuestion tool with:
+  - Pass: The specific failure is gone — verified
+  - Fail: The failure still occurs — fix is incomplete
+  - Skip (with reason): This check cannot be run — describe why
 
-```
-2. Are all tests passing?
-   (Run the test suite — no regressions) [y/n]:
-```
+If "Fail": do not proceed. Ask the user to address the issue and re-run this check.
+If the user selects "Other", read their explanation and determine pass/fail/skip status.
 
-```
-3. Are the affected systems healthy?
-   (Check metrics, logs, error rates) [y/n]:
-```
+**Check 2: Are all tests passing?**
+Tell the user: "Run the test suite — confirm no regressions."
+Use the AskUserQuestion tool with:
+  - Pass: All tests are green — no regressions
+  - Fail: Tests are failing — regression or test gap found
+  - Skip (with reason): Test suite cannot be run — describe why
 
-```
-4. Is user impact resolved?
-   (If isolation was applied, has it been lifted?) [y/n]:
-```
+If "Fail": do not proceed. Ask the user to address the failing tests first.
+If the user selects "Other", read their explanation and determine pass/fail/skip status.
 
-If any answer is "n": do not proceed. Ask the user to address the failing check.
-Repeat until all four are "y".
+**Check 3: Are the affected systems healthy?**
+Tell the user: "Check metrics, logs, error rates."
+Use the AskUserQuestion tool with:
+  - Pass: Systems are healthy — error rates normal, no anomalies
+  - Fail: Systems still show elevated errors or degraded metrics
+  - Skip (with reason): Metrics unavailable — describe why
+
+If "Fail": do not proceed. Ask the user to investigate the continued anomaly.
+If the user selects "Other", read their explanation and determine pass/fail/skip status.
+
+**Check 4: Is user impact resolved?**
+Tell the user: "If isolation was applied (rollback, feature flag, traffic redirect), has it been lifted?"
+Use the AskUserQuestion tool with:
+  - Pass: User impact is fully resolved and any isolation measures have been lifted
+  - Fail: Users are still impacted or isolation has not been lifted
+  - Skip (with reason): Not applicable to this incident — describe why
+
+If "Fail": do not proceed. Ask the user to lift isolation and confirm user impact is clear.
+If the user selects "Other", read their explanation and determine pass/fail/skip status.
+
+All four checks must pass (or be explicitly skipped with justification) before proceeding.
 
 Add to timeline:
 ```

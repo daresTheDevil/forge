@@ -129,32 +129,54 @@ Tell the user:
 PROCEDURAL CONTROLS CHECKLIST
 ──────────────────────────────────────────────────
 These controls exist outside .forge/ and must be confirmed manually.
-Answer Y or N for each. Your answers will appear in the TICS.
+Your answers will appear in the TICS.
+```
 
-1. Branch protection: Is the main/master branch protected from direct pushes?
-   (GitHub: Settings → Branches → Branch protection rules)
-   [Y/N]:
-```
-Wait for answer. Store as `ctrl_branch_protection`.
+**Question 1 — Branch protection:**
+Tell the user: "Is the main/master branch protected from direct pushes? (GitHub: Settings → Branches → Branch protection rules)"
 
-```
-2. Access control: Is push access to the main branch restricted to named individuals?
-   If yes, list who:
-```
-Wait for answer. Store as `ctrl_access_control` and `ctrl_access_list` (the names/roles).
+Use the AskUserQuestion tool with:
+  - Yes: Branch protection rules are active on the main/master branch
+  - No: No branch protection is configured
+  - Other: For nuanced answers such as "partial" or "in progress"
 
-```
-3. Backup testing: Has the database/system backup been tested (restore verified)?
-   If yes, when was it last tested (approximate date or "N/A"):
-```
-Wait for answer. Store as `ctrl_backup_tested` and `ctrl_backup_date`.
+If the user selects "Other" and provides an explanation, record their response faithfully
+and note the nuance in the TICS (e.g. "Partially — protection on main but not release branches").
+Store the result as `ctrl_branch_protection` (YES / NO / [nuanced value]).
 
-```
-4. Incident response tested: Has the incident response procedure been run at least once
-   in the last 12 months (either a real incident or a drill)?
-   [Y/N]:
-```
-Wait for answer. Store as `ctrl_ir_tested`.
+**Question 2 — Access control:**
+Tell the user: "Is push access to the main branch restricted to named individuals? If yes, who has access?"
+
+Use the AskUserQuestion tool with:
+  - Yes, restricted: Push access is limited to named individuals — you will provide names
+  - No, unrestricted: Any contributor can push directly
+
+If the user selects "Other" and provides an explanation, record their response faithfully.
+After the user selects "Yes, restricted", ask: "Who has push access? (names or roles):"
+Wait for their free-text response. Store as `ctrl_access_control` (YES/NO) and `ctrl_access_list`.
+
+**Question 3 — Backup testing:**
+Tell the user: "Has the database/system backup been tested with a restore verification?"
+
+Use the AskUserQuestion tool with:
+  - Yes, tested: Backup restore has been verified — you will provide the approximate date
+  - No, not tested: Backup restore has not been verified
+  - Other: For nuanced answers such as "partial" or "scheduled but not yet run"
+
+If the user selects "Yes, tested", ask: "When was it last tested? (approximate date or quarter):"
+Wait for their free-text response. Store as `ctrl_backup_tested` (YES/NO) and `ctrl_backup_date`.
+If the user selects "Other" and provides an explanation, record their response faithfully.
+
+**Question 4 — Incident response tested:**
+Tell the user: "Has the incident response procedure been run at least once in the last 12 months? (real incident or drill)"
+
+Use the AskUserQuestion tool with:
+  - Yes, tested: A real incident or drill has exercised the IR procedure in the last 12 months
+  - No, not tested: The IR procedure has not been exercised
+  - Other: For nuanced answers such as "tabletop only" or "partial drill"
+
+If the user selects "Other" and provides an explanation, record their response faithfully.
+Store the result as `ctrl_ir_tested` (YES / NO / [nuanced value]).
 
 ---
 

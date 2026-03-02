@@ -126,15 +126,23 @@ Files written:
 
 ## Step 9: Ask about git commit
 
-Ask the user: "Commit .forge/ to git to start tracking the audit trail? [y/n]"
+Tell the user: "Commit .forge/ to git to start tracking the audit trail?"
 
-If yes:
+Use the AskUserQuestion tool with:
+  - Yes, commit now: Stages .forge/ and CLAUDE.md and creates the initial audit trail commit
+  - No, skip for now: Skips the commit — you can commit .forge/ manually later
+
+If the user selects "Other" and provides an explanation, read it carefully and determine
+whether it represents a conditional yes (e.g. "commit but skip CLAUDE.md"), a conditional no,
+or a request for more context. Adapt accordingly rather than defaulting.
+
+If the user selects "Yes, commit now":
   Run: `git add .forge/ CLAUDE.md`
   Run: `git commit -m "chore: initialize forge project map"`
   Tell user: "Committed. The .forge/ directory is now tracked in git."
   Tell user: "This satisfies the NIGC 90-day audit trail retention requirement."
 
-If no:
+If the user selects "No, skip for now":
   Tell user: "OK. Run /forge:map any time to regenerate. Remember to commit .forge/ before your next release."
 
 ## Step 10: Update audit trail

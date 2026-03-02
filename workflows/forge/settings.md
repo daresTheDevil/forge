@@ -76,21 +76,19 @@ Config:  .forge/config.json
 
 ## Step 3: Ask what to do
 
-Tell the user:
-```
-What would you like to do?
-  1. Edit a setting
-  2. Reset a setting to default
-  3. View setting descriptions
-  4. Exit (no changes)
+Use the AskUserQuestion tool with:
+  - Edit a setting: Change the value of a specific configuration setting
+  - Reset to default: Remove a project override and fall back to user or built-in default
+  - View descriptions: Show full documentation for all available settings
+  - Exit: No changes — close the settings editor
 
-Enter 1-4:
-```
-Wait for input.
+If the user selects "Other" and provides an explanation, read it carefully. If they name
+or describe a specific setting they want to change, treat it as "Edit a setting" and proceed
+directly. If the intent is unclear, ask a follow-up question.
 
 ---
 
-## Step 4a: Edit a setting (choice 1)
+## Step 4a: Edit a setting (user selected "Edit a setting")
 
 Ask which setting to change:
 ```
@@ -130,7 +128,7 @@ Return to Step 2 (redisplay the full table with the updated value).
 
 ---
 
-## Step 4b: Reset a setting (choice 2)
+## Step 4b: Reset a setting (user selected "Reset to default")
 
 Ask which setting to reset:
 ```
@@ -154,7 +152,7 @@ Return to Step 2.
 
 ---
 
-## Step 4c: View setting descriptions (choice 3)
+## Step 4c: View setting descriptions (user selected "View descriptions")
 
 Display the full setting reference:
 
@@ -216,7 +214,7 @@ Return to Step 3.
 
 ---
 
-## Step 4d: Exit (choice 4)
+## Step 4d: Exit (user selected "Exit")
 
 ```
 No changes made.
