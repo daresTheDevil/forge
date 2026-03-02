@@ -1,20 +1,111 @@
-# Forge Diagnose — Coming in Phase 4
+# Forge Diagnose Workflow
 
-This command is planned for Phase 4 (Operational Commands).
+Structured root-cause triage for a specific failure during development.
+This workflow is invoked by `/forge:diagnose [description of failure]`.
 
-When implemented, `/forge:diagnose [description of failure]` will:
-- Spawn the `forge-debugger` agent to perform structured root-cause triage
-- Follow a systematic path: symptoms → hypothesis → evidence → root cause → fix
-- NOT guess randomly — each step must produce evidence before moving to the next
-- Check in a defined order: environment variables → config → connectivity → logs → code
-- Reference `.forge/map/infra.md` to understand the system topology before diagnosing
-- Distinguish between: configuration errors, code bugs, infrastructure failures,
-  dependency issues, and data problems
-- Write a structured diagnosis report with: root cause, evidence, fix applied, verification
+This is for **development failures** — build errors, test failures, service won't start,
+unexpected behavior in a local or staging environment.
 
-This is a focused tool for failures during development. For production incidents,
-use `/forge:fire` instead.
+For **production incidents**, use `/forge:fire` instead.
 
-Current status: Not yet implemented.
+## Step 1: Parse the failure description
 
-Run `/forge:help` to see available commands.
+`$ARGUMENTS` contains the description of what's failing.
+
+If `$ARGUMENTS` is empty:
+```
+Usage: /forge:diagnose <description of what's failing>
+
+Examples:
+  /forge:diagnose "tests passing locally but failing in CI"
+  /forge:diagnose "server won't start after adding the new env var"
+  /forge:diagnose "database migration failing on staging"
+
+Provide a description so the diagnosis can be targeted.
+```
+Stop.
+
+Record `failure_description` = `$ARGUMENTS`.
+
+Display:
+```
+DIAGNOSE
+══════════════════════════════════════════════════
+Failure: [failure_description]
+══════════════════════════════════════════════════
+Loading project context...
+```
+
+## Step 2: Load project context
+
+Read the following files if they exist:
+- `.forge/map/infra.md` — system topology, services, ports, dependencies
+- `.forge/map/stack.md` — tech stack, test runner, build tools
+- `.forge/map/conventions.md` — project conventions
+- `.forge/state/current.md` — current forge phase and last action
+
+Summarize what was loaded:
+```
+Context loaded:
+  Infrastructure:  [found | not found — /forge:map to generate]
+  Stack:           [found | not found]
+  Current phase:   [phase from state, or "none"]
+```
+
+## Step 3: Spawn forge-debugger agent
+
+Spawn a `forge-debugger` subagent. Pass:
+- `failure_description`
+- Contents of `.forge/map/infra.md` (if found)
+- Contents of `.forge/map/stack.md` (if found)
+- Current working directory (project root)
+
+The agent:
+1. Reads `.forge/map/infra.md` to understand the system before diagnosing
+2. Works through a structured checklist: Env → Config → Connectivity → Deps → Logs → Code
+3. States a hypothesis at each layer before gathering evidence
+4. Stops at the first confirmed suspect and reports it
+5. Does NOT modify any files — read-only investigation
+6. Writes `.forge/state/diagnose-[YYYY-MM-DD-HH-slug].md`
+
+Wait for the agent to complete.
+
+## Step 4: Display diagnosis report
+
+Read the diagnosis report written by the agent.
+Display it to the user in full.
+
+## Step 5: Ask for confirmation
+
+After displaying the report:
+```
+──────────────────────────────────────────────────
+Was the root cause identified? [y/n]:
+```
+
+If "y":
+```
+Root cause confirmed. Ready to fix?
+
+Options:
+  /forge:build   — if this needs a planned implementation
+  Fix it now     — for simple fixes, just make the change
+  /forge:fire    — if this turns out to be a production incident
+```
+
+If "n":
+```
+Diagnosis inconclusive. Options:
+
+  1. Provide more context — paste error output, log lines, or describe
+     what you've already tried
+  2. Run /forge:diagnose again with a more specific description
+  3. Check manually — the report should tell you where to look next
+```
+
+## Step 6: Write diagnosis entry to audit trail (if root cause found)
+
+If root cause was confirmed, append to `.forge/compliance/audit-trail.md`:
+```
+| [ISO timestamp] | diagnose:complete | forge | [failure_description] → .forge/state/diagnose-[slug].md |
+```
