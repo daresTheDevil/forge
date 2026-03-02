@@ -12,15 +12,23 @@ header "Updating forge..."
 
 # Pull latest
 cd "$FORGE_DIR"
-info "Pulling latest from origin/main..."
 BEFORE=$(git rev-parse HEAD)
+BEFORE_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "unversioned")
+info "Current version: $BEFORE_TAG"
+info "Pulling latest from origin/main..."
 git pull origin main
 AFTER=$(git rev-parse HEAD)
+AFTER_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "unversioned")
 
 if [ "$BEFORE" = "$AFTER" ]; then
-  info "Already up to date."
+  success "Already up to date. ($BEFORE_TAG)"
 else
-  info "Changes since last update:"
+  if [ "$BEFORE_TAG" != "$AFTER_TAG" ]; then
+    success "Updated: $BEFORE_TAG → $AFTER_TAG"
+  else
+    success "Updated: $BEFORE_TAG (tip updated, no new version tag)"
+  fi
+  info "Changes:"
   git log --oneline "$BEFORE".."$AFTER"
 fi
 
