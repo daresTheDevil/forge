@@ -68,7 +68,7 @@ mkdir -p "$CLAUDE_DIR"/{commands,agents,workflows/forge,skills}
 header "Building MCP tools server..."
 cd "$FORGE_DIR/server"
 pnpm install --silent
-pnpm build --silent
+pnpm --silent build
 success "MCP server built → $FORGE_DIR/server/dist/index.js"
 cd "$FORGE_DIR"
 
@@ -117,21 +117,18 @@ success "$(ls "$FORGE_DIR/workflows/forge/" | wc -l | tr -d ' ') workflows insta
 header "Configuring MCP servers..."
 
 MCP_CONFIG="$CLAUDE_DIR/settings.local.json"
-
-# Read existing config or start fresh
-if [ -f "$MCP_CONFIG" ]; then
-  existing=$(cat "$MCP_CONFIG")
-else
-  existing='{}'
-fi
-
 SERVER_DIST="$FORGE_DIR/server/dist/index.js"
 
-# Use node to merge MCP config (avoids jq dependency)
+# Use node to merge MCP config — reads the file itself to avoid bash heredoc quoting issues
 node --input-type=module <<EOF
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 
-const existing = JSON.parse('${existing//\'/\'}' || '{}');
+let existing = {};
+const configPath = '${MCP_CONFIG}';
+if (existsSync(configPath)) {
+  try { existing = JSON.parse(readFileSync(configPath, 'utf8')); } catch (_) {}
+}
+
 const mcpServers = existing.mcpServers || {};
 
 // Our custom tools server
@@ -160,7 +157,7 @@ mcpServers['context7'] = {
 };
 
 const config = { ...existing, mcpServers };
-writeFileSync('${MCP_CONFIG}', JSON.stringify(config, null, 2) + '\n');
+writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
 console.log('MCP config written');
 EOF
 

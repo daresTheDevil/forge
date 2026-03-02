@@ -328,6 +328,56 @@ export const PnpmListSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Compliance Schemas
+// ---------------------------------------------------------------------------
+
+export const ComplianceNextCrIdSchema = z.object({
+  crId: z.string(),
+  year: z.number(),
+  number: z.number(),
+});
+
+export const ComplianceCrResultSchema = z.object({
+  crId: z.string(),
+  path: z.string(),
+  status: z.enum(["AUTHORIZED", "COMPLETE", "CANCELLED"]),
+  written: z.boolean(),
+});
+
+export const ComplianceAuditEntrySchema = z.object({
+  action: z.string(),
+  actor: z.string(),
+  reference: z.string(),
+  timestamp: z.string(),
+});
+
+export const ComplianceAuditTrailResultSchema = z.object({
+  path: z.string(),
+  appended: z.number(),
+  entries: z.array(ComplianceAuditEntrySchema),
+});
+
+export const ComplianceSecurityAuditResultSchema = z.object({
+  path: z.string(),
+  date: z.string(),
+  criticalCount: z.number(),
+  highCount: z.number(),
+  mediumCount: z.number(),
+  lowCount: z.number(),
+  infoCount: z.number(),
+  releaseBlocked: z.boolean(),
+});
+
+export const ComplianceDeploymentLogResultSchema = z.object({
+  path: z.string(),
+  version: z.string(),
+  changeRequestId: z.string(),
+  environment: z.string(),
+  verification: z.enum(["PASSED", "FAILED"]),
+  written: z.boolean(),
+});
+
+// ---------------------------------------------------------------------------
 // Type exports
 // ---------------------------------------------------------------------------
 
@@ -367,3 +417,10 @@ export type PnpmAdd = z.infer<typeof PnpmAddSchema>;
 export type PnpmRemove = z.infer<typeof PnpmRemoveSchema>;
 export type PnpmRun = z.infer<typeof PnpmRunSchema>;
 export type PnpmList = z.infer<typeof PnpmListSchema>;
+
+export type ComplianceNextCrId = z.infer<typeof ComplianceNextCrIdSchema>;
+export type ComplianceCrResult = z.infer<typeof ComplianceCrResultSchema>;
+export type ComplianceAuditEntry = z.infer<typeof ComplianceAuditEntrySchema>;
+export type ComplianceAuditTrailResult = z.infer<typeof ComplianceAuditTrailResultSchema>;
+export type ComplianceSecurityAuditResult = z.infer<typeof ComplianceSecurityAuditResultSchema>;
+export type ComplianceDeploymentLogResult = z.infer<typeof ComplianceDeploymentLogResultSchema>;
