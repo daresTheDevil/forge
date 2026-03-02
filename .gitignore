@@ -9,3 +9,7 @@ server/dist/
 *.key
 *.pem
 *.cert
+
+# Claude Code session state (not project artifacts)
+.forge/handoffs/
+.forge/logs/
