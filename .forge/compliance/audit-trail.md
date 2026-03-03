@@ -10,3 +10,7 @@ This file is append-only. Every significant forge action is recorded here.
 | 2026-03-02T20:30:00Z | build:authorized | David Kay | CR-2026-001 |
 | 2026-03-02T20:30:00Z | worktree:created | forge | forge/CR-2026-001 |
 | 2026-03-02T21:15:00Z | build:complete | forge | CR-2026-001 |
+| 2026-03-03T01:11:52Z | review:approved | David Kay | CR-2026-001 |
+| 2026-03-03T01:11:52Z | pr:creating | forge | CR-2026-001 |
+| 2026-03-03T01:11:52Z | pr:created | forge | https://github.com/daresTheDevil/forge/pull/1 |
+| 2026-03-03T01:25:00Z | security:audit-complete | forge-security | CR-2026-001 |

@@ -1,0 +1,83 @@
+[
+  {
+    "severity": "MEDIUM",
+    "category": "Dependency",
+    "title": "esbuild <=0.24.2 — dev server CORS bypass (CVE pending / GHSA-67mh-4wv8-2f99)",
+    "description": "esbuild version 0.21.5 is present as a transitive devDependency (vitest -> vite -> esbuild). The vulnerability allows any website to send arbitrary requests to esbuild's local dev server and read the response, enabling cross-origin data theft when the dev server is running. The patched version is >=0.25.0. This dependency is not present in production bundles — it is only used by vitest during testing — which limits blast radius to developer machines running tests.",
+    "file": "/Users/dkay/code/forge/server/pnpm-lock.yaml",
+    "line": "63",
+    "recommendation": "Upgrade vitest to a release that pulls in esbuild >=0.25.0. The vulnerability is in a devDependency and does not affect the built MCP server or installed forge CLI. Track the vitest changelog for a release that bumps its vite peer dependency to resolve the transitive esbuild pin. Not release-blocking for CR-2026-001 given dev-only scope, but should be resolved before the next dependency update cycle."
+  },
+  {
+    "severity": "LOW",
+    "category": "Shell Injection / Path Handling",
+    "title": "node heredoc in install.sh interpolates MCP_CONFIG and SERVER_DIST as unescaped JS single-quoted strings",
+    "description": "In install.sh (both main and CR versions), the node --input-type=module heredoc uses unquoted <<EOF, causing $MCP_CONFIG and $SERVER_DIST to expand before the script is passed to node. Both values are embedded inside JavaScript single-quoted string literals (e.g. const configPath = '${MCP_CONFIG}'). If either path contains a single-quote character — for example if $HOME were set to a path like /home/user's-machine — it would break the JS syntax and could allow JS code injection into the node script. In practice, $HOME and FORGE_DIR are operator-controlled and are virtually never set to paths containing single quotes on macOS or Linux, making this a theoretical risk only. The CR version already applies printf '%q' for FORGE_DIR_SAFE in the SHEOF dispatcher heredoc, demonstrating awareness of the pattern, but the same mitigation was not applied to the EOF node heredoc.",
+    "file": "/Users/dkay/code/forge/.claude/worktrees/CR-2026-001/install.sh",
+    "line": "123",
+    "recommendation": "Before the <<EOF heredoc block, assign shell-escaped variants: MCP_CONFIG_SAFE=$(printf '%q' \"$MCP_CONFIG\") and SERVER_DIST_SAFE=$(printf '%q' \"$SERVER_DIST\"), then substitute those safe forms inside the heredoc. Alternatively, pass the paths as environment variables and read them in the Node script via process.env rather than string interpolation."
+  },
+  {
+    "severity": "LOW",
+    "category": "Supply Chain",
+    "title": "curl|bash install pattern documented in install.sh header",
+    "description": "The install.sh header comment advertises curl -fsSL https://raw.githubusercontent.com/daresthedevil/forge/main/install.sh | bash as a supported install method. This pattern allows a MITM or compromised CDN/GitHub to serve a malicious script that executes with full developer privileges. The script runs as the user's own account — not root — which limits blast radius to the developer's home directory and credentials. The repository uses HTTPS, reducing (but not eliminating) MITM risk.",
+    "file": "/Users/dkay/code/forge/.claude/worktrees/CR-2026-001/install.sh",
+    "line": "6",
+    "recommendation": "Document that curl|bash is a convenience path for trusted machines only. For production or compliance environments, require git clone + signature verification before running install.sh. Consider adding a checksum verification step or moving to a signed release artifact. This is consistent with common toolchain installers (Homebrew, Rustup) that use the same pattern — acceptable risk for a developer tool."
+  },
+  {
+    "severity": "LOW",
+    "category": "Supply Chain",
+    "title": "update.sh pulls from main without tag or signature verification",
+    "description": "update.sh runs git pull origin main then re-executes install.sh. If the origin remote is compromised or the developer's git remote is redirected, this silently upgrades forge to an attacker-controlled version and re-runs the installer. There is no version pinning, tag verification, or checksum check. For a personal developer tool this is a standard risk profile, but it should be documented.",
+    "file": "/Users/dkay/code/forge/update.sh",
+    "line": "19",
+    "recommendation": "Consider adding a check that the new HEAD is reachable from a known signed tag before running install.sh (e.g., git verify-commit HEAD or a gpg-signed tag check). Alternatively, document that forge update is a convenience feature and advise users to review changes before updating in security-sensitive environments."
+  },
+  {
+    "severity": "INFO",
+    "category": "Accepted Risk — Shell Execution",
+    "title": "runVerify uses sh -c with plan file content (accepted trust boundary)",
+    "description": "In build.ts, runVerify spawns sh -c with the task.verify string read directly from the .forge/plans/*-PLAN.md file. This is an intentional trust boundary: plan files are authored by the developer or by Claude under developer supervision via /forge:plan. They are local files that require write access to the project directory to create or modify. The function is well-commented with this rationale. The CLAUDECODE guard prevents forge build from running inside an active session. stderr is capped at 500 bytes, and a 60-second timeout is enforced. No externally-sourced content reaches this path.",
+    "file": "/Users/dkay/code/forge/.claude/worktrees/CR-2026-001/server/src/cli/build.ts",
+    "line": "100",
+    "recommendation": "No action required. Trust boundary is explicit, documented, and scoped to developer-authored content. Continue ensuring plan files are only created through controlled channels (/forge:plan) and are committed to version control."
+  },
+  {
+    "severity": "INFO",
+    "category": "Accepted Risk — Privilege",
+    "title": "spawnClaude uses --dangerously-skip-permissions flag",
+    "description": "The claude subprocess in spawn.ts is invoked with --dangerously-skip-permissions, which bypasses Claude Code's normal permission confirmation prompts. This is required for autonomous operation and is the architectural intent of forge build. The blast radius is constrained by the --allowedTools whitelist, which is resolved through a fail-secure whitelist lookup: unknown task types default to read-only rather than full access. The CLAUDECODE environment variable is stripped from the child process to prevent nested session conflicts.",
+    "file": "/Users/dkay/code/forge/.claude/worktrees/CR-2026-001/server/src/cli/spawn.ts",
+    "line": "106",
+    "recommendation": "No action required. The permission skip is scoped by the --allowedTools whitelist and the plan file trust boundary. Ensure that plan files always pass through the /forge:plan gate (which involves human review via Gate 1) before forge build consumes them."
+  },
+  {
+    "severity": "INFO",
+    "category": "Input Validation",
+    "title": "assertNoFlagInjection only checks leading dash — does not sanitize path traversal or shell metacharacters",
+    "description": "The validation.ts assertNoFlagInjection function rejects values starting with '-' to prevent flag injection into subprocess argv arrays. It does not sanitize shell metacharacters, path traversal sequences (../), or null bytes. This is acceptable because the MCP tools server passes all values as discrete argv elements to spawn() (not to a shell), so metacharacters are not interpreted by a shell. Path traversal is meaningful only in context — for git tools, git itself performs repository-scope validation. No shell expansion occurs on argv array members.",
+    "file": "/Users/dkay/code/forge/server/src/lib/validation.ts",
+    "line": "1",
+    "recommendation": "No action required for the current use cases. If future tools pass user-controlled values that are interpreted as filesystem paths where path traversal would be exploitable (e.g., reading files outside a project root), add path.resolve() normalization and a contains-check against the allowed base path at the call site."
+  },
+  {
+    "severity": "INFO",
+    "category": "Path Handling",
+    "title": "resolveScope passes top-level file symlinks into improve scope",
+    "description": "In improve.ts, resolveScope correctly uses lstatSync (non-following) to detect and skip symlinks during directory traversal. However, for top-level entries (paths passed explicitly as CLI args or from last-build.json), existsSync is called first — which follows symlinks — and then lstatSync detects the symlink and skips only directory symlinks. A top-level path argument that is a symlink pointing to a file will pass through lstatSync.isFile() as false (since lstat reports it as a symlink, not a file), meaning it will be silently dropped. The scope is correctly sanitized in practice, though the code comments about symlinks should clarify the top-level behavior.",
+    "file": "/Users/dkay/code/forge/.claude/worktrees/CR-2026-001/server/src/cli/improve.ts",
+    "line": "71",
+    "recommendation": "No exploitable issue — symlinks at the top level are dropped silently (not followed). The code behaves safely. Consider clarifying the comment at line 71 to note that top-level symlinks are also skipped, not just directory-traversal symlinks, to avoid confusion for future maintainers."
+  },
+  {
+    "severity": "INFO",
+    "category": "Secrets Scan",
+    "title": "No hardcoded secrets, tokens, or credentials found",
+    "description": "Full scan of all TypeScript source files, shell scripts, and compliance documents in the project found no hardcoded API keys, passwords, tokens, private keys, AWS access keys, or GitHub PATs. The .forge/compliance/ directory contains only metadata (timestamps, usernames, status strings) and no sensitive values. The MCP server env field is set to an empty object {}.",
+    "file": null,
+    "line": null,
+    "recommendation": "No action required. Continue enforcing the no-secrets-in-code rule from CLAUDE.md on all future commits."
+  }
+]
