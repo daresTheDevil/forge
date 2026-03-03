@@ -15,6 +15,10 @@ cd "$FORGE_DIR"
 BEFORE=$(git rev-parse HEAD)
 BEFORE_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "unversioned")
 info "Current version: $BEFORE_TAG"
+# SECURITY NOTE: This pulls and re-runs install.sh without signature verification.
+# A compromised origin remote would silently upgrade forge to an attacker-controlled
+# version. For security-sensitive environments, review `git log origin/main` before
+# running `forge update`, or pin to a signed release tag.
 info "Pulling latest from origin/main..."
 git pull origin main
 AFTER=$(git rev-parse HEAD)

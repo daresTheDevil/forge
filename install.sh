@@ -7,6 +7,11 @@ set -euo pipefail
 #   OR: git clone https://github.com/daresthedevil/forge ~/.forge && ~/.forge/install.sh
 #   OR: ~/.forge/install.sh --local   (install to ./.claude/ instead of ~/.claude/)
 #   OR: ~/.forge/install.sh --update  (called by `forge update`)
+#
+# SECURITY NOTE: The curl|bash install method is a convenience path for trusted
+# developer machines. A compromised CDN or MITM could serve a malicious script.
+# For security-sensitive environments: git clone the repo, review the code, then
+# run install.sh directly. The git clone path is not vulnerable to this risk.
 
 FORGE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCOPE="global"
@@ -119,12 +124,17 @@ header "Configuring MCP servers..."
 MCP_CONFIG="$CLAUDE_DIR/settings.local.json"
 SERVER_DIST="$FORGE_DIR/server/dist/index.js"
 
+# Shell-safe representations — guards against paths containing single quotes
+# that would otherwise break JS string literals in the heredoc below.
+MCP_CONFIG_SAFE=$(printf '%q' "$MCP_CONFIG")
+SERVER_DIST_SAFE=$(printf '%q' "$SERVER_DIST")
+
 # Use node to merge MCP config — reads the file itself to avoid bash heredoc quoting issues
 node --input-type=module <<EOF
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 
 let existing = {};
-const configPath = '${MCP_CONFIG}';
+const configPath = '${MCP_CONFIG_SAFE}';
 if (existsSync(configPath)) {
   try { existing = JSON.parse(readFileSync(configPath, 'utf8')); } catch (_) {}
 }
@@ -134,7 +144,7 @@ const mcpServers = existing.mcpServers || {};
 // Our custom tools server
 mcpServers['forge-tools'] = {
   command: 'node',
-  args: ['${SERVER_DIST}'],
+  args: ['${SERVER_DIST_SAFE}'],
   env: {}
 };
 
