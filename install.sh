@@ -188,21 +188,35 @@ header "Installing forge command..."
 FORGE_BIN="$HOME/.local/bin/forge"
 mkdir -p "$HOME/.local/bin"
 
+# Produce a shell-safe (printf %q) representation of FORGE_DIR so that paths
+# containing spaces, quotes, or special characters are correctly baked in.
+FORGE_DIR_SAFE=$(printf '%q' "$FORGE_DIR")
+
 cat > "$FORGE_BIN" <<SHEOF
 #!/usr/bin/env bash
 # forge — dispatcher for forge commands
-# Installed from: $FORGE_DIR
-FORGE_DIR="$FORGE_DIR"
+# Installed from: $FORGE_DIR_SAFE
+FORGE_DIR=$FORGE_DIR_SAFE
 
 case "\${1:-}" in
+  build)
+    shift
+    exec node "\$FORGE_DIR/server/dist/cli/index.js" build "\$@"
+    ;;
+  improve)
+    shift
+    exec node "\$FORGE_DIR/server/dist/cli/index.js" improve "\$@"
+    ;;
   update)    exec "\$FORGE_DIR/update.sh" ;;
   uninstall) exec "\$FORGE_DIR/uninstall.sh" ;;
   *)
     echo "forge — AI development workflow"
     echo ""
     echo "Usage:"
-    echo "  forge update      Pull latest and rebuild"
-    echo "  forge uninstall   Remove forge from this machine"
+    echo "  forge build               Run the autonomous build loop"
+    echo "  forge improve [file ...]  Run the improve loop"
+    echo "  forge update              Pull latest and rebuild"
+    echo "  forge uninstall           Remove forge from this machine"
     echo ""
     echo "Inside Claude Code, use /forge:help to see all commands."
     ;;
@@ -210,6 +224,10 @@ esac
 SHEOF
 chmod +x "$FORGE_BIN"
 success "forge command installed → $FORGE_BIN"
+info "  forge build     → runs the autonomous build loop"
+info "  forge improve   → runs the improve loop"
+info "  forge update    → pull latest and rebuild"
+info "  forge uninstall → remove forge from this machine"
 
 # Check if ~/.local/bin is in PATH
 if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
