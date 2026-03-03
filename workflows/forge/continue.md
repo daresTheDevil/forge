@@ -118,7 +118,7 @@ Next: run /forge:discuss to continue or finish the conversation, then run /forge
 ### Phase: plan
 ```
 The implementation plan is ready.
-Next: run /forge:build to authorize and begin implementation.
+Next: run /forge:authorize to authorize and begin implementation.
 ```
 
 ### Phase: build / build-in-progress

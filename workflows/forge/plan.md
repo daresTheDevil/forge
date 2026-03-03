@@ -142,7 +142,7 @@ Requirements covered: [full list of all REQ-NNNs]
 Update `.forge/state/current.md`:
 - **Current phase**: plan
 - **Last action**: plan validated — [N] plans, [N] waves
-- **Next action**: run /forge:build to authorize and begin implementation
+- **Next action**: run /forge:authorize to authorize and begin implementation
 - **Last updated**: [ISO timestamp]
 
 Append to `.forge/compliance/audit-trail.md`:
@@ -152,9 +152,9 @@ Append to `.forge/compliance/audit-trail.md`:
 
 Tell the user:
 ```
-Next: run /forge:build to authorize the change and begin autonomous implementation.
+Next: run /forge:authorize to authorize the change and begin autonomous implementation.
 
-When you run /forge:build, you will be asked to explicitly authorize the build.
+When you run /forge:authorize, you will be asked to explicitly authorize the build.
 At that point, a Change Request document will be created and a git worktree will
 be opened. No code will change before you authorize.
 ```

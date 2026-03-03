@@ -19,7 +19,7 @@ WORKFLOW (run in this order for a new feature)
   /forge:discuss                Structured conversation, locks decisions
   /forge:spec                   Convert discussion into a PRD (REQ-NNN format)
   /forge:plan                   Decompose spec into wave-based implementation graph
-  /forge:build                  GATE 1 → authorize → worktree → autonomous build
+  /forge:authorize              GATE 1 → authorize → worktree → autonomous build
   /forge:review                 GATE 2 → review output → create PR
   /forge:release                GATE 3 → approve deploy → compliance artifacts
 

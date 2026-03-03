@@ -1,8 +1,8 @@
-# Forge Build Workflow — Gate 1
+# Forge Authorize Workflow — Gate 1
 
 Authorize the implementation and begin autonomous build in an isolated git worktree.
 
-This workflow is invoked by `/forge:build`.
+This workflow is invoked by `/forge:authorize`.
 
 ## Step 1: Find and validate the plan
 
@@ -66,7 +66,7 @@ Type 'authorize' to proceed or 'cancel' to abort:
 Wait for user input.
 
 If the user types anything other than exactly 'authorize' (case-insensitive):
-  Tell the user: "Build cancelled. No changes were made. Run /forge:build when ready."
+  Tell the user: "Build cancelled. No changes were made. Run /forge:authorize when ready."
   Stop.
 
 If the user types 'authorize':

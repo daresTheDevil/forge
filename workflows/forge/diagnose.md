@@ -91,7 +91,7 @@ If user selects "Yes, root cause found":
 Root cause confirmed. Ready to fix?
 
 Options:
-  /forge:build   — if this needs a planned implementation
+  /forge:authorize — if this needs a planned implementation
   Fix it now     — for simple fixes, just make the change
   /forge:fire    — if this turns out to be a production incident
 ```

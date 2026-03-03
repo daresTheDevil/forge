@@ -230,7 +230,7 @@ Warnings found. Review and remediate if needed before next release.
 If any FAIL:
 ```
 ⚠ Failures found. Forge functionality may be impaired.
-Remediate before running /forge:build or /forge:release.
+Remediate before running /forge:authorize or /forge:release.
 ```
 
 ## Step 4: Remediation guide

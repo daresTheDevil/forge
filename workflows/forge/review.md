@@ -8,7 +8,7 @@ review before merge. No code merges without the human reviewing and approving.
 ## Step 1: Load current state
 
 Read `.forge/state/current.md`. Extract:
-- `Current phase` — must be `build-complete` (if not, stop and tell user to run `/forge:build` first)
+- `Current phase` — must be `build-complete` (if not, stop and tell user to run `/forge:authorize` first)
 - `Active change request` — the CR-ID
 - `Worktree branch` — should be `forge/[CR-ID]`
 
@@ -16,7 +16,7 @@ If phase is not `build-complete`:
 ```
 No completed build found.
 
-Run /forge:build to implement the plan first,
+Run /forge:authorize to implement the plan first,
 then /forge:review to review the output and create the PR.
 ```
 Stop.
@@ -84,9 +84,9 @@ Wait for user input.
 Ask the user what needs to change. Update state:
 - **Current phase**: review-changes-requested
 - **Last action**: reviewer requested changes
-- **Next action**: re-run /forge:build after fixing issues
+- **Next action**: re-run /forge:authorize after fixing issues
 
-Tell the user: "Changes noted. Return to the build phase and re-run /forge:build with the updated requirements."
+Tell the user: "Changes noted. Return to the build phase and re-run /forge:authorize with the updated requirements."
 Stop.
 
 ### If 'abandon':

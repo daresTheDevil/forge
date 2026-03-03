@@ -178,5 +178,5 @@ None — the code is already clean, or all identified changes were deemed too ri
 - Never sacrifice clarity for brevity. A well-named 5-line function beats a "clever" 1-liner.
 - If you cannot determine whether a name is exported or internal, treat it as exported.
 - If you find an actual bug (not a quality issue), do NOT fix it. Note it in the summary.
-  Bugs are handled by /forge:build, not /forge:improve.
+  Bugs are handled by /forge:authorize, not /forge:improve.
 - Your output is reviewed by a human at Gate 2. Write the summary for a human reader.

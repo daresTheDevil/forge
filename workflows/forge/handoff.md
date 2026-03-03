@@ -74,7 +74,7 @@ Run this command to resume:
 /forge:continue
 ```
 
-Then: [specific thing to do — e.g., "run /forge:build to start the implementation" or
+Then: [specific thing to do — e.g., "run /forge:authorize to start the implementation" or
 "review and approve the PR at [link]"]
 
 ## Decisions Made This Session

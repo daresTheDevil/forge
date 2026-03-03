@@ -163,7 +163,7 @@ SETTING REFERENCE
 WORKFLOW
 
   plan_checking  (boolean, default: true)
-    Run forge-plan-checker before every /forge:build.
+    Run forge-plan-checker before every /forge:authorize.
     The checker validates plans across 8 dimensions and blocks builds
     that fail validation. Disable only if plan checking is too slow
     for rapid iteration.

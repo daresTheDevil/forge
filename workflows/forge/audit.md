@@ -21,7 +21,7 @@ If no spec found:
 No spec found for the current task.
 
 Run /forge:spec to create a spec first,
-or run /forge:plan and /forge:build to implement one.
+or run /forge:plan and /forge:authorize to implement one.
 ```
 Stop.
 
