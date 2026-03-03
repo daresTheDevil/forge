@@ -14,3 +14,7 @@ This file is append-only. Every significant forge action is recorded here.
 | 2026-03-03T01:11:52Z | pr:creating | forge | CR-2026-001 |
 | 2026-03-03T01:11:52Z | pr:created | forge | https://github.com/daresTheDevil/forge/pull/1 |
 | 2026-03-03T01:25:00Z | security:audit-complete | forge-security | CR-2026-001 |
+| 2026-03-03T02:00:00Z | deploy:authorized | David Kay | CR-2026-001 |
+| 2026-03-03T02:00:00Z | pr:merged | forge | https://github.com/daresTheDevil/forge/pull/1 |
+| 2026-03-03T02:00:00Z | release:tagged | forge | v0.2.0 |
+| 2026-03-03T02:00:00Z | release:complete | forge | v0.2.0 |
