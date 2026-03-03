@@ -108,87 +108,31 @@ git worktree add .claude/worktrees/[CR-ID] -b forge/[CR-ID]
 
 Tell the user: "Worktree created at .claude/worktrees/[CR-ID]/ on branch forge/[CR-ID]"
 
-## Step 7: Execute Wave 1
-
-Read MANIFEST.md to get all Wave 1 plans.
-
-Tell the user:
-```
-Starting Wave 1: [N] plans running in parallel...
-[Plan 01: slug — N tasks]
-[Plan 02: slug — N tasks]
-```
-
-Spawn one `forge-executor` agent per Wave 1 plan, in parallel.
-Pass each agent: the plan file path. The agents are working in the worktree at
-`.claude/worktrees/[CR-ID]/`.
-
-Wait for all Wave 1 agents to complete.
-
-For each completed plan, check for:
-- `.forge/plans/[plan-id]-SUMMARY.md` → success
-- `.forge/plans/[plan-id]-BLOCKED.md` → blocked
-
-### If any Wave 1 plan is blocked:
-
-Tell the user:
-```
-BLOCKER DETECTED in Wave 1 — [plan-id]
-
-[Read and display the BLOCKED.md contents]
-
-The build is paused. Options:
-  a) Provide a solution — I'll relay it to the executor and retry
-  b) Skip this plan and continue with remaining plans (not recommended)
-  c) Abandon the build and discard the worktree
-
-Choose [a/b/c]:
-```
-
-If a: collect user guidance, spawn executor again with the guidance, resume.
-If b: mark plan as skipped, note it in CR document, continue to next wave.
-If c: run `git worktree remove .claude/worktrees/[CR-ID] --force`, tell user, stop.
-
-### If all Wave 1 plans complete successfully:
-
-Tell the user: "Wave 1 complete. Starting Wave 2..."
-
-## Step 8: Execute Wave 2 (and further waves, if any)
-
-For each subsequent wave, repeat Step 7 logic — but check that Wave N-1 completed
-successfully before starting Wave N. Handle blockers the same way.
-
-## Step 9: Build complete — summarize and tell user next step
-
-After all waves complete:
-
-Update `.forge/compliance/change-requests/[CR-ID].md`:
-- Change `**Status**:` to `COMPLETE`
-
-Append to `.forge/compliance/audit-trail.md`:
-```
-| [ISO timestamp] | build:complete | forge | [CR-ID] |
-```
+## Step 7: Hand off to terminal build loop
 
 Update `.forge/state/current.md`:
-- **Current phase**: build-complete
+- **Current phase**: build-authorized
 - **Active change request**: [CR-ID]
-- **Last action**: build complete — all waves passed
-- **Next action**: run /forge:review to review output and create PR
+- **Last action**: build authorized — [CR-ID] created, worktree ready
+- **Next action**: run `forge build` from a terminal to execute the build loop
 - **Last updated**: [ISO timestamp]
-
-Count total commits: run `git log --oneline forge/[CR-ID] ^main` in the worktree.
-Count total tests added: parse SUMMARY.md files for "Tests added:" lines.
 
 Tell the user:
 ```
-Build complete.
-  Change Request: [CR-ID]
-  Plans implemented: [N]/[N]
-  Commits made: [N] (branch forge/[CR-ID])
-  Tests added: [N]
-  Worktree: .claude/worktrees/[CR-ID]/
+GATE 1 COMPLETE — AUTHORIZED
+══════════════════════════════════════════════════
+Change Request: [CR-ID]
+Worktree: .claude/worktrees/[CR-ID]/ (branch forge/[CR-ID])
 
-Next: run /forge:review to review the output and create the PR.
-      This is Gate 2 — your review is required before merge.
+Authorization recorded. No code has changed yet.
+
+NOW: open a terminal outside Claude Code and run:
+
+  forge build
+
+The build loop will execute each plan wave autonomously.
+This Claude session stays clean while the build runs.
+
+When forge build completes, return here and run /forge:review.
+══════════════════════════════════════════════════
 ```
