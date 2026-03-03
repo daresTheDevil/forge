@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync, readFileSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, statSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { spawnClaude } from './spawn.js';
@@ -30,10 +30,15 @@ export function calcDelta(
 // ── Scope resolution (pure, exported for testing) ─────────────────────────────
 
 /**
- * Resolve an array of paths/globs to actual file paths.
+ * Resolve an array of paths to actual file paths.
  * - Existing files are returned as-is
- * - Directories are expanded to all .ts/.js/.py files within them (recursive)
+ * - Directories are expanded to all source files within them (recursive)
+ * - Symlinks are skipped (lstatSync does not follow them) to prevent both
+ *   directory traversal and infinite recursion on circular symlinks
  * - Nonexistent paths are silently dropped
+ *
+ * Note: glob patterns (e.g. "src/**") are not supported. Pass literal file
+ * or directory paths only. Use a directory path to expand all files within it.
  */
 export function resolveScope(patterns: string[]): string[] {
   const results: string[] = [];
@@ -48,12 +53,14 @@ export function resolveScope(patterns: string[]): string[] {
     for (const entry of entries) {
       const full = path.join(dir, entry);
       try {
-        const stat = statSync(full);
+        // lstatSync does not follow symlinks — symlinks are skipped entirely
+        const stat = lstatSync(full);
         if (stat.isDirectory()) {
           walk(full);
-        } else if (/\.(ts|tsx|js|mjs|py|rb|go|rs)$/.test(entry)) {
+        } else if (stat.isFile() && /\.(ts|tsx|js|mjs|py|rb|go|rs)$/.test(entry)) {
           results.push(full);
         }
+        // symlinks: stat.isSymbolicLink() — intentionally skipped
       } catch {
         // skip unreadable entries
       }
@@ -62,12 +69,13 @@ export function resolveScope(patterns: string[]): string[] {
 
   for (const pattern of patterns) {
     if (!existsSync(pattern)) continue;
-    const stat = statSync(pattern);
+    const stat = lstatSync(pattern);
     if (stat.isDirectory()) {
       walk(pattern);
-    } else {
+    } else if (stat.isFile()) {
       results.push(pattern);
     }
+    // top-level symlinks are also skipped
   }
 
   return results;

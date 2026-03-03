@@ -235,6 +235,8 @@ export function createTui(): Tui {
   let timer: ReturnType<typeof setInterval> | null = null;
   let startTime = Date.now();
   let destroyed = false;
+  let resizeHandler: (() => void) | null = null;
+  let stdinDataHandler: ((data: Buffer) => void) | null = null;
 
   // State for header
   const state = {
@@ -350,9 +352,11 @@ export function createTui(): Tui {
       if (process.stdin.isTTY && !process.stdin.isRaw) {
         process.stdin.setRawMode(true);
         process.stdin.resume();
-        process.stdin.on('data', (data: Buffer) => {
+        // Capture as named reference so destroy() removes only this listener
+        stdinDataHandler = (data: Buffer) => {
           if (data[0] === 3) process.emit('SIGINT');
-        });
+        };
+        process.stdin.on('data', stdinDataHandler);
       }
 
       setupScrollRegion();
@@ -360,10 +364,12 @@ export function createTui(): Tui {
 
       timer = setInterval(() => drawHeader(), 1000);
 
-      process.stdout.on('resize', () => {
+      // Capture as named reference so destroy() removes only this listener
+      resizeHandler = () => {
         setupScrollRegion();
         drawHeader();
-      });
+      };
+      process.stdout.on('resize', resizeHandler);
     },
 
     updateTask(taskData) {
@@ -393,11 +399,18 @@ export function createTui(): Tui {
       if (destroyed) return;
       destroyed = true;
       if (timer) clearInterval(timer);
-      process.stdout.removeAllListeners('resize');
+      // Remove only the listeners registered by this TUI instance
+      if (resizeHandler) {
+        process.stdout.off('resize', resizeHandler);
+        resizeHandler = null;
+      }
       mouseOff();
       if (process.stdin.isTTY && process.stdin.isRaw) {
         process.stdin.setRawMode(false);
-        process.stdin.removeAllListeners('data');
+        if (stdinDataHandler) {
+          process.stdin.off('data', stdinDataHandler);
+          stdinDataHandler = null;
+        }
         process.stdin.pause();
       }
       resetScrollRegion();

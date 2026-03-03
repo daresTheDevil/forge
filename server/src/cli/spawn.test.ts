@@ -58,9 +58,10 @@ describe('getAllowedTools', () => {
     expect(tools).toBe('Read,Glob,Grep');
   });
 
-  it('defaults to full tool set for unknown task types', () => {
+  it('defaults to most restrictive tool set for unknown task types', () => {
+    // Security: unknown task types fail-secure (read-only) rather than fail-open (full Bash)
     const tools = getAllowedTools('unknown-type');
-    expect(tools).toBe('Read,Edit,Write,Bash,Glob,Grep');
+    expect(tools).toBe('Read,Glob,Grep');
   });
 });
 

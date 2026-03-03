@@ -50,8 +50,8 @@ describe('formatSummary', () => {
       doneCount: 0,
     };
     const summary = formatSummary(state, false);
-    expect(summary).toContain('BLOCKER');
-    expect(summary).toContain('BLOCKER.md');
+    expect(summary).toContain('BLOCKED');    // status word
+    expect(summary).toContain('BLOCKER.md'); // file reference
     expect(summary).toContain('re-run');
   });
 
@@ -65,7 +65,7 @@ describe('formatSummary', () => {
       doneCount: 1,
     };
     const summary = formatSummary(state, true); // improveRan = true
-    expect(summary).toContain('improve');
+    expect(summary).toContain('Improve pass');
   });
 });
 

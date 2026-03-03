@@ -188,11 +188,15 @@ header "Installing forge command..."
 FORGE_BIN="$HOME/.local/bin/forge"
 mkdir -p "$HOME/.local/bin"
 
+# Produce a shell-safe (printf %q) representation of FORGE_DIR so that paths
+# containing spaces, quotes, or special characters are correctly baked in.
+FORGE_DIR_SAFE=$(printf '%q' "$FORGE_DIR")
+
 cat > "$FORGE_BIN" <<SHEOF
 #!/usr/bin/env bash
 # forge — dispatcher for forge commands
-# Installed from: $FORGE_DIR
-FORGE_DIR="$FORGE_DIR"
+# Installed from: $FORGE_DIR_SAFE
+FORGE_DIR=$FORGE_DIR_SAFE
 
 case "\${1:-}" in
   build)

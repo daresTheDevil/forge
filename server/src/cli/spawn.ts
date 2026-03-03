@@ -4,9 +4,15 @@ import type { ParsedTask, SpawnEvent } from './types.js';
 
 // ── Tool set per task type ────────────────────────────────────────────────────
 
+const TOOL_SETS: Record<string, string> = {
+  'auto':      'Read,Edit,Write,Bash,Glob,Grep',
+  'write':     'Read,Edit,Write,Glob,Grep',
+  'read-only': 'Read,Glob,Grep',
+};
+
 export function getAllowedTools(taskType: string): string {
-  if (taskType === 'read-only') return 'Read,Glob,Grep';
-  return 'Read,Edit,Write,Bash,Glob,Grep';
+  // Explicit whitelist — unknown task types get the most restrictive set.
+  return TOOL_SETS[taskType] ?? TOOL_SETS['read-only']!;
 }
 
 // ── Prompt builder ────────────────────────────────────────────────────────────

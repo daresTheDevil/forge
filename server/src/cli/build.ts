@@ -1,9 +1,10 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { parsePlanFiles } from './parser.js';
 import { spawnClaude, buildTaskPrompt } from './spawn.js';
+import { runImprove } from './improve.js';
 import { createTui } from './tui.js';
 import { attachDisplay } from './display.js';
 import type { BuildState, PlanFile, TaskState } from './types.js';
@@ -71,7 +72,7 @@ export function formatSummary(state: BuildState, improveRan: boolean): string {
     lines.push(`  Tasks completed: ${state.completedTasks.length}/${state.totalTasks}`);
     lines.push(`  Files modified:  ${state.filesModified.length}`);
     lines.push(`  Time elapsed:    ${timeStr}`);
-    if (improveRan) lines.push('  improve pass:    ran');
+    if (improveRan) lines.push('  Improve pass:    ran');
     lines.push('');
     lines.push('  Next: run /forge:review');
   }
@@ -79,6 +80,48 @@ export function formatSummary(state: BuildState, improveRan: boolean): string {
   lines.push('');
   lines.push('─'.repeat(50));
   return lines.join('\n');
+}
+
+// ── Async verify helper ───────────────────────────────────────────────────────
+
+/**
+ * Run the task's <verify> command asynchronously (non-blocking event loop).
+ * Plan files are developer-controlled content; sh -c is used because verify
+ * commands legitimately need shell features (&&, pipes, cd).
+ * Trust boundary: forge plans are authored by the developer or by Claude
+ * under developer supervision — they are not externally-sourced.
+ */
+function runVerify(
+  cmd: string,
+  cwd: string,
+  timeoutMs: number,
+): Promise<{ status: number; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn('sh', ['-c', cmd], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+      cwd,
+    });
+
+    let stderr = '';
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString().slice(0, 500);
+    });
+
+    const timer = setTimeout(() => {
+      child.kill();
+      resolve({ status: 124, stderr: '[verify command timed out]' });
+    }, timeoutMs);
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      resolve({ status: code ?? 1, stderr });
+    });
+
+    child.on('error', (err: Error) => {
+      clearTimeout(timer);
+      resolve({ status: 1, stderr: err.message });
+    });
+  });
 }
 
 // ── Build options ─────────────────────────────────────────────────────────────
@@ -96,6 +139,16 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
   const cwd = opts.cwd ?? process.cwd();
   const plansDir = opts.plansDir ?? path.join(cwd, '.forge', 'plans');
   const stateDir = path.join(cwd, '.forge', 'state');
+
+  // CLAUDECODE guard — fail fast before any file I/O or TUI initialization.
+  // forge build cannot run inside an active Claude Code session.
+  if (!opts.dryRun && process.env['CLAUDECODE']) {
+    process.stderr.write(
+      '[forge] forge build cannot run inside an active Claude Code session.\n' +
+      '[forge] Open a separate terminal outside Claude Code and run: forge build\n'
+    );
+    return 1;
+  }
 
   // Check plans directory exists
   if (!existsSync(plansDir)) {
@@ -115,7 +168,7 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
     return 0;
   }
 
-  // Count total autonomous tasks
+  // Count total autonomous tasks (build-wide, used for progress display)
   const totalTasks = autonomousPlans.reduce((sum, p) => sum + p.tasks.length, 0);
 
   if (opts.dryRun) return 0;
@@ -129,15 +182,6 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
     totalTasks,
     doneCount: 0,
   };
-
-  // Check for CLAUDECODE guard
-  if (process.env['CLAUDECODE']) {
-    process.stderr.write(
-      '[forge] forge build cannot run inside an active Claude Code session.\n' +
-      '[forge] Open a separate terminal outside Claude Code and run: forge build\n'
-    );
-    return 1;
-  }
 
   // Initialize TUI
   const tui = createTui();
@@ -202,7 +246,13 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
             }
             tui.updateTask({ attempt, maxAttempts: MAX_ATTEMPTS });
 
-            const prompt = buildTaskPrompt(task, planSlug, taskIndex + 1, plan.tasks.length);
+            // Build-wide task number (N/total) for the Claude prompt
+            const prompt = buildTaskPrompt(
+              task,
+              planSlug,
+              buildState.doneCount + 1,
+              totalTasks,
+            );
             const emitter = new EventEmitter();
             const ctx = attachDisplay(emitter, { tui });
 
@@ -211,6 +261,9 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
               taskType: task.type,
             });
 
+            // Release emitter listeners — prevent accumulation across retries
+            emitter.removeAllListeners();
+
             // Accumulate modified files from display context
             for (const f of ctx.stats.filesModified) {
               if (!buildState.filesModified.includes(f)) {
@@ -218,12 +271,8 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
               }
             }
 
-            // Verify using the task's <verify> command
-            const verifyResult = spawnSync('sh', ['-c', task.verify], {
-              cwd,
-              encoding: 'utf-8',
-              timeout: 60_000,
-            });
+            // Verify using the task's <verify> command (async — does not block event loop)
+            const verifyResult = await runVerify(task.verify, cwd, 60_000);
 
             if (verifyResult.status === 0) {
               taskDone = true;
@@ -239,9 +288,10 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
               tui.updateTask({ done: buildState.doneCount, stage: 'CHECKPOINT' });
               tui.appendLog(`  ✓ Task ${taskIndex + 1} complete`);
             } else {
-              const reason = exitCode !== 0
+              const claudeFailed = exitCode !== 0;
+              const reason = claudeFailed
                 ? `claude exited with code ${exitCode}`
-                : `verify command failed (exit ${verifyResult.status}): ${verifyResult.stderr?.slice(0, 200) ?? ''}`;
+                : `verify command failed (exit ${verifyResult.status}): ${verifyResult.stderr.slice(0, 200)}`;
               failureReasons.push(reason);
               tui.appendLog(`  ⚠ Attempt ${attempt} failed — ${reason.slice(0, 100)}`);
             }
@@ -262,6 +312,30 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
             break waveLoop;
           }
         }
+      }
+    }
+
+    // Auto-improve pass on files touched by the build (REQ-006).
+    // Non-fatal: improve failure does not invalidate a successful build.
+    if (!buildState.blockedTask && buildState.filesModified.length > 0 && !interrupted) {
+      tui.appendLog('\n  Running improve pass...');
+      try {
+        const improveResult = await runImprove({
+          scope: buildState.filesModified,
+          maxIterations: 10,
+          threshold: 0.05,
+          standalone: false,
+          cwd,
+          tui,
+        });
+        improveRan = !improveResult.error;
+        if (improveResult.error) {
+          tui.appendLog(`  Improve pass failed (non-fatal): ${improveResult.error}`);
+        } else {
+          tui.appendLog(`  Improve pass complete — ${improveResult.iterations} iteration(s)`);
+        }
+      } catch (err) {
+        tui.appendLog(`  Improve pass error (non-fatal): ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
