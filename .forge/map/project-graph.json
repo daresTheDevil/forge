@@ -1,0 +1,502 @@
+{
+  "generated": "2026-03-02T22:00:00Z",
+  "version": "1.0",
+  "entities": [
+    {
+      "id": "mcp-server",
+      "type": "service",
+      "name": "forge-tools MCP Server",
+      "path": "server/src/index.ts",
+      "description": "stdio MCP server exposing 39 structured tools for git, docker, k8s, pnpm, and compliance. Compiled to server/dist/index.js."
+    },
+    {
+      "id": "cli-dispatcher",
+      "type": "script",
+      "name": "forge CLI dispatcher",
+      "path": "install.sh (generates ~/.local/bin/forge)",
+      "description": "Shell dispatcher installed to ~/.local/bin/forge. Routes 'build' and 'improve' to dist/cli/index.js; 'update' and 'uninstall' to shell scripts."
+    },
+    {
+      "id": "cli-main",
+      "type": "service",
+      "name": "forge CLI entry point",
+      "path": "server/src/cli/index.ts",
+      "description": "Arg parser and router. Dispatches to runBuild() or runImproveCommand(). Compiled to dist/cli/index.js."
+    },
+    {
+      "id": "cli-build",
+      "type": "service",
+      "name": "Build Loop",
+      "path": "server/src/cli/build.ts",
+      "description": "Autonomous build loop. Reads plan files from .forge/plans/, groups by wave, spawns Claude subprocesses per task, drives TUI, writes BLOCKER.md on failure, triggers improve pass on success."
+    },
+    {
+      "id": "cli-improve",
+      "type": "service",
+      "name": "Improve Loop",
+      "path": "server/src/cli/improve.ts",
+      "description": "Iterative quality improvement pass. Reads last-build.json or explicit file list, spawns Claude to suggest improvements, applies up to maxIterations."
+    },
+    {
+      "id": "cli-spawn",
+      "type": "library",
+      "name": "Claude Spawner",
+      "path": "server/src/cli/spawn.ts",
+      "description": "Spawns claude subprocess with --output-format=stream-json. Emits typed SpawnEvent objects (init, assistant, result, error)."
+    },
+    {
+      "id": "cli-tui",
+      "type": "library",
+      "name": "Alternate-screen TUI",
+      "path": "server/src/cli/tui.ts",
+      "description": "Terminal UI using alternate screen. Displays real-time build/improve progress, wave status, and task results."
+    },
+    {
+      "id": "cli-display",
+      "type": "library",
+      "name": "Stream-JSON Display Handler",
+      "path": "server/src/cli/display.ts",
+      "description": "Consumes SpawnEvent stream from claude subprocess and renders to TUI."
+    },
+    {
+      "id": "cli-parser",
+      "type": "library",
+      "name": "Plan File Parser",
+      "path": "server/src/cli/parser.ts",
+      "description": "Parses .forge/plans/*.md files with YAML frontmatter and XML task blocks. Produces typed PlanFile objects."
+    },
+    {
+      "id": "cli-types",
+      "type": "library",
+      "name": "CLI Types",
+      "path": "server/src/cli/types.ts",
+      "description": "Shared TypeScript interfaces and Zod schemas for CLI layer: PlanFile, BuildState, TaskState, SpawnEvent, ImproveOptions, PlanFrontmatterSchema."
+    },
+    {
+      "id": "lib-runner",
+      "type": "library",
+      "name": "Process Runner",
+      "path": "server/src/lib/runner.ts",
+      "description": "run(cmd, args, opts) — async child process spawner. Resolves binary via which, caps output at 10 MB, strips ANSI, supports timeout with SIGTERM."
+    },
+    {
+      "id": "lib-output",
+      "type": "library",
+      "name": "Dual Output",
+      "path": "server/src/lib/output.ts",
+      "description": "dualOutput(data, formatter) — produces both structuredContent (JSON) and content (human text) for every MCP tool response."
+    },
+    {
+      "id": "lib-errors",
+      "type": "library",
+      "name": "Error Factory",
+      "path": "server/src/lib/errors.ts",
+      "description": "makeError(category, message, suggestion) and handleRunError(). Typed error categories: command-not-found, permission-denied, timeout, invalid-input, not-found, command-failed."
+    },
+    {
+      "id": "lib-validation",
+      "type": "library",
+      "name": "Input Validation",
+      "path": "server/src/lib/validation.ts",
+      "description": "assertNoFlagInjection() and assertNoFlagInjectionList(). Guards all user-supplied strings from starting with '-' to prevent CLI flag injection."
+    },
+    {
+      "id": "tools-git",
+      "type": "library",
+      "name": "Git Tools",
+      "path": "server/src/tools/git.ts",
+      "description": "10 MCP tools: git_status, git_log, git_diff, git_show, git_add, git_commit, git_push, git_pull, git_branch, git_checkout."
+    },
+    {
+      "id": "tools-docker",
+      "type": "library",
+      "name": "Docker Tools",
+      "path": "server/src/tools/docker.ts",
+      "description": "9 MCP tools for Docker: container list/inspect/logs/start/stop/remove, image list/pull/remove."
+    },
+    {
+      "id": "tools-k8s",
+      "type": "library",
+      "name": "Kubernetes Tools",
+      "path": "server/src/tools/k8s.ts",
+      "description": "9 MCP tools for kubectl: get pods/deployments/services/namespaces, describe, logs, apply, delete, rollout-status."
+    },
+    {
+      "id": "tools-pnpm",
+      "type": "library",
+      "name": "pnpm Tools",
+      "path": "server/src/tools/pnpm.ts",
+      "description": "5 MCP tools: pnpm_install, pnpm_build, pnpm_test, pnpm_lint, pnpm_run."
+    },
+    {
+      "id": "tools-compliance",
+      "type": "library",
+      "name": "Compliance Tools",
+      "path": "server/src/tools/compliance.ts",
+      "description": "6 MCP tools for NIGC 543.20 compliance: read/write change requests, audit trail append, deployment log, security audit, state management."
+    },
+    {
+      "id": "schemas",
+      "type": "library",
+      "name": "Zod Schemas",
+      "path": "server/src/schemas/index.ts",
+      "description": "All Zod schemas and inferred TypeScript types for MCP tool responses: Git, Docker, K8s, pnpm shapes."
+    },
+    {
+      "id": "install-sh",
+      "type": "script",
+      "name": "Installer",
+      "path": "install.sh",
+      "description": "Primary install script. Checks prereqs (node>=20, git, pnpm), builds server, copies commands/agents/workflows to ~/.claude/, merges MCP config, writes CLI dispatcher, initializes user config."
+    },
+    {
+      "id": "update-sh",
+      "type": "script",
+      "name": "Update Script",
+      "path": "update.sh",
+      "description": "git pull + install.sh --update. Invoked by 'forge update'."
+    },
+    {
+      "id": "uninstall-sh",
+      "type": "script",
+      "name": "Uninstall Script",
+      "path": "uninstall.sh",
+      "description": "Removes ~/.claude/commands/forge/, ~/.claude/agents/forge-*.md, ~/.claude/workflows/forge/, forge-tools entry from MCP config, and ~/.local/bin/forge."
+    },
+    {
+      "id": "agent-debugger",
+      "type": "agent",
+      "name": "forge-debugger",
+      "path": "agents/forge-debugger.md",
+      "description": "Subagent for systematic debugging and incident diagnosis. Spawned by /forge:diagnose and /forge:fire workflows."
+    },
+    {
+      "id": "agent-executor",
+      "type": "agent",
+      "name": "forge-executor",
+      "path": "agents/forge-executor.md",
+      "description": "Subagent that executes implementation tasks from a plan. Spawned by build loop workflows."
+    },
+    {
+      "id": "agent-improver",
+      "type": "agent",
+      "name": "forge-improver",
+      "path": "agents/forge-improver.md",
+      "description": "Subagent for iterative quality improvements. Spawned by /forge:improve workflow."
+    },
+    {
+      "id": "agent-mapper",
+      "type": "agent",
+      "name": "forge-mapper",
+      "path": "agents/forge-mapper.md",
+      "description": "Subagent that scans the project and produces .forge/map/ files. Spawned by /forge:map and /forge:recon."
+    },
+    {
+      "id": "agent-plan-checker",
+      "type": "agent",
+      "name": "forge-plan-checker",
+      "path": "agents/forge-plan-checker.md",
+      "description": "Subagent that validates plan files against spec requirements before build authorization."
+    },
+    {
+      "id": "agent-planner",
+      "type": "agent",
+      "name": "forge-planner",
+      "path": "agents/forge-planner.md",
+      "description": "Subagent that decomposes specs into wave-ordered implementation plans. Spawned by /forge:plan."
+    },
+    {
+      "id": "agent-researcher",
+      "type": "agent",
+      "name": "forge-researcher",
+      "path": "agents/forge-researcher.md",
+      "description": "Subagent for research and context gathering. Spawned by /forge:discuss and /forge:spec."
+    },
+    {
+      "id": "agent-reviewer",
+      "type": "agent",
+      "name": "forge-reviewer",
+      "path": "agents/forge-reviewer.md",
+      "description": "Subagent for code review (correctness, style, maintainability). Spawned in parallel by /forge:review."
+    },
+    {
+      "id": "agent-security",
+      "type": "agent",
+      "name": "forge-security",
+      "path": "agents/forge-security.md",
+      "description": "Subagent for security audit. Spawned in parallel by /forge:review and /forge:secure."
+    },
+    {
+      "id": "workflow-build",
+      "type": "workflow",
+      "name": "build workflow",
+      "path": "workflows/forge/build.md",
+      "description": "Gate 1 human gate. Loads spec + plans, spawns plan-checker, requires 'authorize' from user, writes CR document, begins autonomous implementation."
+    },
+    {
+      "id": "workflow-review",
+      "type": "workflow",
+      "name": "review workflow",
+      "path": "workflows/forge/review.md",
+      "description": "Gate 2 human gate. Spawns forge-reviewer and forge-security in parallel, synthesizes findings, requires 'create-pr', writes REVIEW record, creates PR."
+    },
+    {
+      "id": "workflow-release",
+      "type": "workflow",
+      "name": "release workflow",
+      "path": "workflows/forge/release.md",
+      "description": "Gate 3 human gate. Checks CI status, requires 'deploy', writes deployment log, merges PR, tags release, closes CR."
+    },
+    {
+      "id": "workflow-spec",
+      "type": "workflow",
+      "name": "spec workflow",
+      "path": "workflows/forge/spec.md",
+      "description": "Produces structured PRD with testable acceptance criteria. Spawns forge-researcher."
+    },
+    {
+      "id": "workflow-plan",
+      "type": "workflow",
+      "name": "plan workflow",
+      "path": "workflows/forge/plan.md",
+      "description": "Breaks spec into wave-ordered implementation graph. Spawns forge-planner."
+    },
+    {
+      "id": "workflow-improve",
+      "type": "workflow",
+      "name": "improve workflow",
+      "path": "workflows/forge/improve.md",
+      "description": "Forge Loop continuous improvement cycle. Spawns forge-improver."
+    },
+    {
+      "id": "workflow-diagnose",
+      "type": "workflow",
+      "name": "diagnose workflow",
+      "path": "workflows/forge/diagnose.md",
+      "description": "Systematic triage: env vars, secrets, config, connectivity. Spawns forge-debugger."
+    },
+    {
+      "id": "workflow-fire",
+      "type": "workflow",
+      "name": "fire workflow",
+      "path": "workflows/forge/fire.md",
+      "description": "Incident response: TRIAGE → ISOLATE → DIAGNOSE → PATCH → DEBRIEF. Spawns forge-debugger."
+    },
+    {
+      "id": "workflow-map",
+      "type": "workflow",
+      "name": "map workflow",
+      "path": "workflows/forge/map.md",
+      "description": "Initialize or refresh project map files in .forge/map/. Spawns forge-mapper."
+    },
+    {
+      "id": "workflow-recon",
+      "type": "workflow",
+      "name": "recon workflow",
+      "path": "workflows/forge/recon.md",
+      "description": "Rapid codebase orientation pass."
+    },
+    {
+      "id": "workflow-secure",
+      "type": "workflow",
+      "name": "secure workflow",
+      "path": "workflows/forge/secure.md",
+      "description": "Full security audit. Spawns forge-security."
+    },
+    {
+      "id": "workflow-drift",
+      "type": "workflow",
+      "name": "drift workflow",
+      "path": "workflows/forge/drift.md",
+      "description": "Verify docs and registry match current codebase state."
+    },
+    {
+      "id": "workflow-handoff",
+      "type": "workflow",
+      "name": "handoff workflow",
+      "path": "workflows/forge/handoff.md",
+      "description": "Capture session state for handoff. Writes .forge/handoffs/."
+    },
+    {
+      "id": "workflow-continue",
+      "type": "workflow",
+      "name": "continue workflow",
+      "path": "workflows/forge/continue.md",
+      "description": "Resume from a handoff document. Reads .forge/handoffs/ or pending-resume."
+    },
+    {
+      "id": "workflow-health",
+      "type": "workflow",
+      "name": "health workflow",
+      "path": "workflows/forge/health.md",
+      "description": "System health check across services and infrastructure."
+    },
+    {
+      "id": "workflow-audit",
+      "type": "workflow",
+      "name": "audit workflow",
+      "path": "workflows/forge/audit.md",
+      "description": "NIGC compliance audit report generation."
+    },
+    {
+      "id": "workflow-learn",
+      "type": "workflow",
+      "name": "learn workflow",
+      "path": "workflows/forge/learn.md",
+      "description": "Capture and store project instincts/patterns to .forge/instincts/."
+    },
+    {
+      "id": "workflow-evolve",
+      "type": "workflow",
+      "name": "evolve workflow",
+      "path": "workflows/forge/evolve.md",
+      "description": "Evolve forge itself — promote local improvements to global skills."
+    },
+    {
+      "id": "workflow-promote",
+      "type": "workflow",
+      "name": "promote workflow",
+      "path": "workflows/forge/promote.md",
+      "description": "Promote local improvements or instincts to global forge skills."
+    },
+    {
+      "id": "workflow-docs",
+      "type": "workflow",
+      "name": "docs workflow",
+      "path": "workflows/forge/docs.md",
+      "description": "Documentation pass: inline docs, markdown docs, changelog, README. TICS/SICS generator."
+    },
+    {
+      "id": "workflow-discuss",
+      "type": "workflow",
+      "name": "discuss workflow",
+      "path": "workflows/forge/discuss.md",
+      "description": "Explore problem space, surface assumptions, identify unknowns. Spawns forge-researcher."
+    },
+    {
+      "id": "workflow-settings",
+      "type": "workflow",
+      "name": "settings workflow",
+      "path": "workflows/forge/settings.md",
+      "description": "Manage forge project and global configuration."
+    },
+    {
+      "id": "workflow-status",
+      "type": "workflow",
+      "name": "status workflow",
+      "path": "workflows/forge/status.md",
+      "description": "Show current session/build state from .forge/state/current.md."
+    },
+    {
+      "id": "workflow-quick",
+      "type": "workflow",
+      "name": "quick workflow",
+      "path": "workflows/forge/quick.md",
+      "description": "Fast-path task execution for small, well-defined changes."
+    },
+    {
+      "id": "workflow-help",
+      "type": "workflow",
+      "name": "help workflow",
+      "path": "workflows/forge/help.md",
+      "description": "Display all available forge commands and their descriptions."
+    },
+    {
+      "id": "forge-config",
+      "type": "config",
+      "name": "Project Config",
+      "path": ".forge/config.json",
+      "description": "Per-project forge settings: model_profile, gates (spec/pr/deploy approval), compliance prefix, concurrency limits."
+    },
+    {
+      "id": "mcp-config",
+      "type": "config",
+      "name": "Claude MCP Config",
+      "path": "~/.claude/settings.local.json",
+      "description": "Claude Code MCP server registration. Contains forge-tools, nuxt-docs, nuxt-ui, context7 entries. Written/merged by install.sh."
+    },
+    {
+      "id": "user-config",
+      "type": "config",
+      "name": "User Config",
+      "path": "~/.forge/config.json",
+      "description": "Global user config: model_profile (balanced/fast/best), github_username. Initialized once at install."
+    },
+    {
+      "id": "tsconfig-base",
+      "type": "config",
+      "name": "TypeScript Base Config",
+      "path": "tsconfig.base.json",
+      "description": "Shared strict TypeScript compiler options: ES2022, Node16, strict, noUncheckedIndexedAccess, exactOptionalPropertyTypes."
+    }
+  ],
+  "relationships": [
+    { "from": "install-sh", "to": "mcp-server", "type": "produces" },
+    { "from": "install-sh", "to": "cli-dispatcher", "type": "produces" },
+    { "from": "install-sh", "to": "mcp-config", "type": "produces" },
+    { "from": "install-sh", "to": "user-config", "type": "produces" },
+    { "from": "update-sh", "to": "install-sh", "type": "calls" },
+    { "from": "cli-dispatcher", "to": "cli-main", "type": "calls" },
+    { "from": "cli-dispatcher", "to": "update-sh", "type": "calls" },
+    { "from": "cli-dispatcher", "to": "uninstall-sh", "type": "calls" },
+    { "from": "cli-main", "to": "cli-build", "type": "calls" },
+    { "from": "cli-main", "to": "cli-improve", "type": "calls" },
+    { "from": "cli-build", "to": "cli-parser", "type": "depends-on" },
+    { "from": "cli-build", "to": "cli-spawn", "type": "calls" },
+    { "from": "cli-build", "to": "cli-tui", "type": "calls" },
+    { "from": "cli-build", "to": "cli-display", "type": "calls" },
+    { "from": "cli-build", "to": "cli-improve", "type": "calls" },
+    { "from": "cli-build", "to": "cli-types", "type": "depends-on" },
+    { "from": "cli-improve", "to": "cli-spawn", "type": "calls" },
+    { "from": "cli-improve", "to": "cli-types", "type": "depends-on" },
+    { "from": "cli-parser", "to": "cli-types", "type": "depends-on" },
+    { "from": "cli-spawn", "to": "cli-types", "type": "depends-on" },
+    { "from": "mcp-server", "to": "tools-git", "type": "depends-on" },
+    { "from": "mcp-server", "to": "tools-docker", "type": "depends-on" },
+    { "from": "mcp-server", "to": "tools-k8s", "type": "depends-on" },
+    { "from": "mcp-server", "to": "tools-pnpm", "type": "depends-on" },
+    { "from": "mcp-server", "to": "tools-compliance", "type": "depends-on" },
+    { "from": "tools-git", "to": "lib-runner", "type": "depends-on" },
+    { "from": "tools-git", "to": "lib-output", "type": "depends-on" },
+    { "from": "tools-git", "to": "lib-errors", "type": "depends-on" },
+    { "from": "tools-git", "to": "lib-validation", "type": "depends-on" },
+    { "from": "tools-git", "to": "schemas", "type": "depends-on" },
+    { "from": "tools-docker", "to": "lib-runner", "type": "depends-on" },
+    { "from": "tools-docker", "to": "lib-output", "type": "depends-on" },
+    { "from": "tools-docker", "to": "lib-errors", "type": "depends-on" },
+    { "from": "tools-docker", "to": "lib-validation", "type": "depends-on" },
+    { "from": "tools-k8s", "to": "lib-runner", "type": "depends-on" },
+    { "from": "tools-k8s", "to": "lib-output", "type": "depends-on" },
+    { "from": "tools-k8s", "to": "lib-errors", "type": "depends-on" },
+    { "from": "tools-k8s", "to": "lib-validation", "type": "depends-on" },
+    { "from": "tools-pnpm", "to": "lib-runner", "type": "depends-on" },
+    { "from": "tools-pnpm", "to": "lib-output", "type": "depends-on" },
+    { "from": "tools-pnpm", "to": "lib-errors", "type": "depends-on" },
+    { "from": "tools-compliance", "to": "lib-output", "type": "depends-on" },
+    { "from": "tools-compliance", "to": "lib-errors", "type": "depends-on" },
+    { "from": "install-sh", "to": "agent-debugger", "type": "installs-to" },
+    { "from": "install-sh", "to": "agent-executor", "type": "installs-to" },
+    { "from": "install-sh", "to": "agent-improver", "type": "installs-to" },
+    { "from": "install-sh", "to": "agent-mapper", "type": "installs-to" },
+    { "from": "install-sh", "to": "agent-plan-checker", "type": "installs-to" },
+    { "from": "install-sh", "to": "agent-planner", "type": "installs-to" },
+    { "from": "install-sh", "to": "agent-researcher", "type": "installs-to" },
+    { "from": "install-sh", "to": "agent-reviewer", "type": "installs-to" },
+    { "from": "install-sh", "to": "agent-security", "type": "installs-to" },
+    { "from": "workflow-build", "to": "agent-plan-checker", "type": "spawns" },
+    { "from": "workflow-build", "to": "agent-executor", "type": "spawns" },
+    { "from": "workflow-review", "to": "agent-reviewer", "type": "spawns" },
+    { "from": "workflow-review", "to": "agent-security", "type": "spawns" },
+    { "from": "workflow-spec", "to": "agent-researcher", "type": "spawns" },
+    { "from": "workflow-plan", "to": "agent-planner", "type": "spawns" },
+    { "from": "workflow-improve", "to": "agent-improver", "type": "spawns" },
+    { "from": "workflow-diagnose", "to": "agent-debugger", "type": "spawns" },
+    { "from": "workflow-fire", "to": "agent-debugger", "type": "spawns" },
+    { "from": "workflow-map", "to": "agent-mapper", "type": "spawns" },
+    { "from": "workflow-secure", "to": "agent-security", "type": "spawns" },
+    { "from": "workflow-discuss", "to": "agent-researcher", "type": "spawns" },
+    { "from": "forge-config", "to": "cli-build", "type": "depends-on" },
+    { "from": "tsconfig-base", "to": "mcp-server", "type": "depends-on" },
+    { "from": "tsconfig-base", "to": "cli-main", "type": "depends-on" }
+  ]
+}

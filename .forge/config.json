@@ -1,0 +1,17 @@
+{
+  "model_profile": "balanced",
+  "workflow": {
+    "plan_checking": true,
+    "auto_advance": false,
+    "max_concurrent_agents": 3
+  },
+  "gates": {
+    "require_spec_approval": true,
+    "require_pr_review": true,
+    "require_deploy_approval": true
+  },
+  "compliance": {
+    "change_request_prefix": "CR",
+    "audit_trail": true
+  }
+}
