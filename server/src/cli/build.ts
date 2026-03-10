@@ -124,11 +124,46 @@ function runVerify(
   });
 }
 
+// ── Interactive plan selector ─────────────────────────────────────────────────
+
+/**
+ * Present an arrow-key selector when the user runs `forge build` with no args
+ * and multiple plan files exist. Returns the selected PlanFile, or null if the
+ * user cancels (Ctrl-C) or the environment is non-interactive.
+ *
+ * Falls back gracefully in non-TTY environments (CI, pipes) — returns null so
+ * the caller can emit a helpful message instead of crashing.
+ */
+export async function selectPlan(plans: PlanFile[]): Promise<PlanFile | null> {
+  if (plans.length === 0) return null;
+  if (plans.length === 1) return plans[0]!;
+
+  const { select } = await import('@inquirer/prompts');
+
+  const choices = plans.map(p => ({
+    name: `${path.basename(p.filePath).padEnd(45)} wave ${p.frontmatter.wave} · ${p.tasks.length} task${p.tasks.length === 1 ? '' : 's'}`,
+    value: p,
+    short: path.basename(p.filePath),
+  }));
+
+  try {
+    return await select<PlanFile>({
+      message: 'Select a plan to build',
+      choices,
+    });
+  } catch {
+    // NonInteractiveError or Ctrl-C
+    return null;
+  }
+}
+
 // ── Build options ─────────────────────────────────────────────────────────────
 
 export interface BuildOptions {
   plansDir?: string;
   cwd?: string;
+  /** Specific plan filename (basename) to run — skips interactive selector */
+  planFile?: string;
   /** Skip TUI and actual claude invocation — for testing */
   dryRun?: boolean;
 }
@@ -160,11 +195,57 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
   }
 
   // Load plans
-  const allPlans = parsePlanFiles(plansDir);
-  const autonomousPlans = allPlans.filter(p => p.frontmatter.autonomous);
+  const { plans: allPlans, skipped } = parsePlanFiles(plansDir);
+
+  // Always report skipped files so the user knows what was ignored and why
+  if (skipped.length > 0) {
+    process.stdout.write(`[forge] Skipped ${skipped.length} file(s) in ${plansDir}:\n`);
+    for (const s of skipped) {
+      process.stdout.write(`  SKIP: ${s.filename} — ${s.reason}\n`);
+    }
+    process.stdout.write('\n');
+  }
+
+  // Filter to a specific plan file if one was passed as an argument
+  let planPool = allPlans;
+  if (opts.planFile) {
+    const target = opts.planFile;
+    planPool = allPlans.filter(p => path.basename(p.filePath) === target);
+    if (planPool.length === 0) {
+      process.stderr.write(
+        `[forge] Plan file not found: ${target}\n` +
+        `[forge] Available plans: ${allPlans.map(p => path.basename(p.filePath)).join(', ') || 'none'}\n`
+      );
+      return 1;
+    }
+  } else if (!opts.dryRun && allPlans.length > 1) {
+    // Multiple plans, no file specified — present interactive selector
+    const selected = await selectPlan(allPlans);
+    if (!selected) {
+      process.stdout.write('[forge] No plan selected.\n');
+      return 0;
+    }
+    planPool = [selected];
+  }
+
+  const autonomousPlans = planPool.filter(p => p.frontmatter.autonomous);
+  const nonAutonomousPlans = planPool.filter(p => !p.frontmatter.autonomous);
 
   if (autonomousPlans.length === 0) {
-    process.stdout.write('[forge] No autonomous tasks found — nothing to run.\n');
+    if (nonAutonomousPlans.length > 0) {
+      process.stdout.write(
+        `[forge] ${nonAutonomousPlans.length} plan(s) loaded but none are marked autonomous: true\n` +
+        `[forge] Plans: ${nonAutonomousPlans.map(p => p.frontmatter.slug).join(', ')}\n` +
+        `[forge] Set autonomous: true in the plan frontmatter to include them in the build.\n`
+      );
+    } else if (allPlans.length === 0 && skipped.length === 0) {
+      process.stdout.write(
+        `[forge] No plan files found in ${plansDir}\n` +
+        `[forge] Run /forge:plan inside Claude Code to create a plan first.\n`
+      );
+    } else {
+      process.stdout.write('[forge] No autonomous tasks found — nothing to run.\n');
+    }
     return 0;
   }
 

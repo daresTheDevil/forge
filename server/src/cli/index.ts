@@ -59,7 +59,8 @@ if (isMain) {
   (async () => {
     switch (parsed.command) {
       case 'build': {
-        const code = await runBuild();
+        const buildOpts = parsed.args[0] !== undefined ? { planFile: parsed.args[0] } : {};
+        const code = await runBuild(buildOpts);
         if (code === 0) {
           // Auto-improve on files touched by the build (REQ-006). Non-fatal.
           try {
