@@ -13,3 +13,4 @@ server/dist/
 # Claude Code session state (not project artifacts)
 .forge/handoffs/
 .forge/logs/
+.forge/state/last-build.json
