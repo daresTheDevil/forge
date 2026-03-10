@@ -61,9 +61,10 @@ must_haves: []
 });
 
 describe('parsePlanFiles', () => {
-  it('returns empty array when plans dir does not exist', () => {
-    const plans = parsePlanFiles('/nonexistent/path');
-    expect(plans).toEqual([]);
+  it('returns empty result when plans dir does not exist', () => {
+    const result = parsePlanFiles('/nonexistent/path');
+    expect(result.plans).toEqual([]);
+    expect(result.skipped).toEqual([]);
   });
 
   it('sorts by wave then plan number', () => {
@@ -98,17 +99,31 @@ must_haves: []
 `;
     fs.writeFileSync(path.join(tmpDir, '1-02-second-PLAN.md'), plan1);
     fs.writeFileSync(path.join(tmpDir, '1-01-first-PLAN.md'), plan2);
-    const result = parsePlanFiles(tmpDir);
-    expect(result[0]?.frontmatter.slug).toBe('first');
-    expect(result[1]?.frontmatter.slug).toBe('second');
+    const { plans } = parsePlanFiles(tmpDir);
+    expect(plans[0]?.frontmatter.slug).toBe('first');
+    expect(plans[1]?.frontmatter.slug).toBe('second');
     fs.rmSync(tmpDir, { recursive: true });
   });
 
-  it('skips non-PLAN.md files', () => {
+  it('skips non-PLAN.md files and reports them as skipped', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-test-'));
     fs.writeFileSync(path.join(tmpDir, 'README.md'), '# ignore me');
-    const result = parsePlanFiles(tmpDir);
-    expect(result).toEqual([]);
+    const { plans, skipped } = parsePlanFiles(tmpDir);
+    expect(plans).toEqual([]);
+    expect(skipped).toHaveLength(1);
+    expect(skipped[0]?.filename).toBe('README.md');
+    expect(skipped[0]?.reason).toContain('-PLAN.md');
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('reports wrongly-named .md files as skipped with reason', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-test-'));
+    fs.writeFileSync(path.join(tmpDir, 'PLAN-01-foo.md'), '# wrong name');
+    const { plans, skipped } = parsePlanFiles(tmpDir);
+    expect(plans).toEqual([]);
+    expect(skipped).toHaveLength(1);
+    expect(skipped[0]?.filename).toBe('PLAN-01-foo.md');
+    expect(skipped[0]?.reason).toContain('-PLAN.md');
     fs.rmSync(tmpDir, { recursive: true });
   });
 });

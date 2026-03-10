@@ -124,39 +124,61 @@ function parsePlanNumber(filename: string): number {
   return parseInt(m[1]!, 10) * 1000 + parseInt(m[2]!, 10);
 }
 
+export interface SkippedFile {
+  filename: string;
+  reason: string;
+}
+
+export interface PlanParseResult {
+  plans: PlanFile[];
+  skipped: SkippedFile[];
+}
+
 /**
  * Load and parse all *-PLAN.md files from a directory.
- * Returns them sorted by wave then plan number.
- * Returns empty array if the directory does not exist.
+ * Returns plans sorted by wave then plan number, plus a list of skipped files
+ * with human-readable reasons (wrong filename, bad frontmatter, no tasks).
+ * Returns empty result if the directory does not exist.
  */
-export function parsePlanFiles(plansDir: string): PlanFile[] {
-  if (!existsSync(plansDir)) return [];
+export function parsePlanFiles(plansDir: string): PlanParseResult {
+  if (!existsSync(plansDir)) return { plans: [], skipped: [] };
 
-  let files: string[];
+  let allFiles: string[];
   try {
-    files = readdirSync(plansDir).filter(f => f.endsWith('-PLAN.md'));
+    allFiles = readdirSync(plansDir).filter(f => f.endsWith('.md'));
   } catch {
-    return [];
+    return { plans: [], skipped: [] };
   }
 
-  files.sort((a, b) => parsePlanNumber(a) - parsePlanNumber(b));
+  const skipped: SkippedFile[] = [];
+  const validFilenames = allFiles.filter(f => {
+    if (f === 'MANIFEST.md' || f.startsWith('_')) return false;
+    if (!f.endsWith('-PLAN.md')) {
+      skipped.push({ filename: f, reason: 'filename does not end in -PLAN.md' });
+      return false;
+    }
+    return true;
+  });
 
-  const results: PlanFile[] = [];
+  validFilenames.sort((a, b) => parsePlanNumber(a) - parsePlanNumber(b));
 
-  for (const filename of files) {
+  const plans: PlanFile[] = [];
+
+  for (const filename of validFilenames) {
     const filePath = path.join(plansDir, filename);
     let content: string;
     try {
       content = readFileSync(filePath, 'utf-8');
-    } catch {
+    } catch (e) {
+      skipped.push({ filename, reason: `could not read file: ${e instanceof Error ? e.message : String(e)}` });
       continue;
     }
 
     let frontmatter: PlanFrontmatter;
     try {
       frontmatter = parseFrontmatter(content);
-    } catch {
-      // Skip malformed plan files silently (they'll be reported at build time)
+    } catch (e) {
+      skipped.push({ filename, reason: `frontmatter parse error: ${e instanceof Error ? e.message : String(e)}` });
       continue;
     }
 
@@ -174,8 +196,13 @@ export function parsePlanFiles(plansDir: string): PlanFile[] {
       task = extractTask(content, taskIndex);
     }
 
-    results.push({ filePath, frontmatter, body, tasks });
+    if (tasks.length === 0) {
+      skipped.push({ filename, reason: 'no <task> blocks found in file body' });
+      continue;
+    }
+
+    plans.push({ filePath, frontmatter, body, tasks });
   }
 
-  return results;
+  return { plans, skipped };
 }
