@@ -99,7 +99,20 @@ Append to `.forge/compliance/audit-trail.md`:
 | [ISO timestamp] | worktree:created | forge | forge/[CR-ID] |
 ```
 
-## Step 6: Create the git worktree
+## Step 6: Commit plan files so they exist in the worktree
+
+The worktree will be created from HEAD. Any plan files that are untracked or modified
+must be committed now, or they will not exist in the worktree.
+
+Stage and commit all plan and spec files:
+```
+git add .forge/plans/ .forge/specs/ .forge/state/current.md .forge/compliance/
+git commit -m "chore(plan): commit plan files for [CR-ID]"
+```
+
+If there is nothing to commit (all files already committed), skip this step silently.
+
+## Step 7: Create the git worktree
 
 Create a new git worktree for the build:
 ```
@@ -108,7 +121,7 @@ git worktree add .claude/worktrees/[CR-ID] -b forge/[CR-ID]
 
 Tell the user: "Worktree created at .claude/worktrees/[CR-ID]/ on branch forge/[CR-ID]"
 
-## Step 7: Hand off to terminal build loop
+## Step 8: Update state and hand off to terminal build loop
 
 Update `.forge/state/current.md`:
 - **Current phase**: build-authorized
@@ -128,7 +141,13 @@ Authorization recorded. No code has changed yet.
 
 NOW: open a terminal outside Claude Code and run:
 
+  cd [absolute path to .claude/worktrees/[CR-ID]]
   forge build
+
+Select the plan to build from the interactive menu, or pass the plan
+filename directly to skip the selector:
+
+  forge build [plan-filename]-PLAN.md
 
 The build loop will execute each plan wave autonomously.
 This Claude session stays clean while the build runs.

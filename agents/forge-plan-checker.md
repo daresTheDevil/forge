@@ -12,10 +12,35 @@ Your output is a structured validation report returned as your response.
 You receive: the path(s) to PLAN.md file(s) and the spec they implement as $ARGUMENTS.
 Read all plan files and the spec file before beginning validation.
 
-## The 8 Validation Dimensions
+## The 9 Validation Dimensions
 
 Check each dimension independently. For each dimension: emit PASS or FAIL with specific evidence.
 When FAILing, cite the exact plan file, task, or field that fails the check.
+
+**Dimension 0 is a hard gate.** If any plan fails Dimension 0, stop immediately — do not
+check the other dimensions. Return FAIL with only the Dimension 0 errors. The planner must
+rewrite those files from scratch before any other validation can proceed.
+
+---
+
+### Dimension 0: File Format (HARD GATE)
+
+Every plan file must use the machine-parseable format. Check each file:
+
+1. **Filename** ends with `-PLAN.md` (e.g. `1-01-scaffold-PLAN.md`).
+   FAIL if the filename starts with `PLAN-` or does not end with `-PLAN.md`.
+
+2. **First line** is exactly `---` (YAML frontmatter opening).
+   FAIL if the file starts with `#`, `**`, or any other character.
+
+3. **Tasks** are in `<task>` XML blocks, not markdown lists or headers.
+   FAIL if tasks appear as `1.`, `###`, or `**Task`:` instead of `<task>` elements.
+
+How to check: read the first line of each file. If it is not `---`, that file FAILs.
+Scan the file body for `<task` — if absent, that file FAILs.
+
+FAIL response for this dimension must name every non-conforming file and its exact first line,
+e.g.: `PLAN-01-scaffold.md: starts with "# Plan 01:" — must start with "---"`
 
 ---
 
@@ -171,6 +196,13 @@ Return your response in this exact format:
 **Timestamp**: [ISO timestamp]
 
 ---
+
+### Dimension 0: File Format — PASS|FAIL
+[If PASS: "All plan files use correct filename pattern, YAML frontmatter, and XML task blocks."]
+[If FAIL: List each non-conforming file with its actual first line, e.g.:
+  - PLAN-01-scaffold.md: starts with "# Plan 01:" — must start with "---"
+  - PLAN-02-auth.md: filename does not end in -PLAN.md
+  HARD GATE: remaining dimensions not checked until this is resolved.]
 
 ### Dimension 1: Requirement Coverage — PASS|FAIL
 [If PASS: "All N requirements covered."]

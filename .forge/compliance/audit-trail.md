@@ -18,3 +18,4 @@ This file is append-only. Every significant forge action is recorded here.
 | 2026-03-03T02:00:00Z | pr:merged | forge | https://github.com/daresTheDevil/forge/pull/1 |
 | 2026-03-03T02:00:00Z | release:tagged | forge | v0.2.0 |
 | 2026-03-03T02:00:00Z | release:complete | forge | v0.2.0 |
+| 2026-03-03T02:05:00Z | map:generated | forge | .forge/map/map.md |
