@@ -1,9 +1,29 @@
 import { describe, it, expect, vi } from 'vitest';
-import { groupByWave, formatSummary, writeBlocker } from './build.js';
+import { groupByWave, formatSummary, writeBlocker, hasSummary, updateStateFile } from './build.js';
 import type { BuildState, TaskState } from './types.js';
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
+
+describe('hasSummary', () => {
+  it('returns true when SUMMARY file exists', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-summary-'));
+    const planPath = path.join(tmpDir, '1-01-test-PLAN.md');
+    const summaryPath = path.join(tmpDir, '1-01-test-SUMMARY.md');
+    fs.writeFileSync(planPath, '');
+    fs.writeFileSync(summaryPath, '');
+    expect(hasSummary(planPath)).toBe(true);
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('returns false when SUMMARY file does not exist', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-summary-'));
+    const planPath = path.join(tmpDir, '1-01-test-PLAN.md');
+    fs.writeFileSync(planPath, '');
+    expect(hasSummary(planPath)).toBe(false);
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+});
 
 describe('groupByWave', () => {
   it('groups plans by wave number', () => {
@@ -88,6 +108,40 @@ describe('writeBlocker', () => {
     expect(content).toContain('Attempt 1');
     expect(content).toContain('Attempt 2');
     expect(content).toContain('Attempt 3');
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+});
+
+describe('updateStateFile', () => {
+  it('creates state.json with completed slugs and phase=building', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-state-'));
+    updateStateFile(tmpDir, ['docker-compose-stack']);
+    const state = JSON.parse(fs.readFileSync(path.join(tmpDir, 'state.json'), 'utf-8'));
+    expect(state.phase).toBe('building');
+    expect(state.build.completed_tasks).toEqual(['docker-compose-stack']);
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('appends to existing completed_tasks without duplicates', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-state-'));
+    const stateFile = path.join(tmpDir, 'state.json');
+    fs.writeFileSync(stateFile, JSON.stringify({
+      phase: 'building',
+      build: { completed_tasks: ['api-server'] },
+    }));
+    updateStateFile(tmpDir, ['api-server', 'docker-compose-stack']);
+    const state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+    expect(state.build.completed_tasks).toEqual(['api-server', 'docker-compose-stack']);
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('recovers from malformed state.json', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-state-'));
+    fs.writeFileSync(path.join(tmpDir, 'state.json'), 'not json');
+    updateStateFile(tmpDir, ['my-slug']);
+    const state = JSON.parse(fs.readFileSync(path.join(tmpDir, 'state.json'), 'utf-8'));
+    expect(state.phase).toBe('building');
+    expect(state.build.completed_tasks).toEqual(['my-slug']);
     fs.rmSync(tmpDir, { recursive: true });
   });
 });

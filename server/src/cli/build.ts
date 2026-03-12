@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
@@ -82,6 +82,36 @@ export function formatSummary(state: BuildState, improveRan: boolean): string {
   return lines.join('\n');
 }
 
+// ── State file update ─────────────────────────────────────────────────────────
+
+export function updateStateFile(stateDir: string, completedSlugs: string[]): void {
+  mkdirSync(stateDir, { recursive: true });
+  const stateFilePath = path.join(stateDir, 'state.json');
+
+  let state: { phase: string; build: { completed_tasks: string[] } };
+  if (existsSync(stateFilePath)) {
+    try {
+      state = JSON.parse(readFileSync(stateFilePath, 'utf-8'));
+      if (!Array.isArray(state.build?.completed_tasks)) {
+        state.build = { completed_tasks: [] };
+      }
+    } catch {
+      state = { phase: 'building', build: { completed_tasks: [] } };
+    }
+  } else {
+    state = { phase: 'building', build: { completed_tasks: [] } };
+  }
+
+  state.phase = 'building';
+  for (const slug of completedSlugs) {
+    if (!state.build.completed_tasks.includes(slug)) {
+      state.build.completed_tasks.push(slug);
+    }
+  }
+
+  writeFileSync(stateFilePath, JSON.stringify(state, null, 2) + '\n');
+}
+
 // ── Async verify helper ───────────────────────────────────────────────────────
 
 /**
@@ -124,35 +154,131 @@ function runVerify(
   });
 }
 
+// ── Completion detection ──────────────────────────────────────────────────────
+
+/**
+ * Check whether a plan has been built by looking for its companion SUMMARY file.
+ * Convention: `1-01-slug-PLAN.md` → `1-01-slug-SUMMARY.md`
+ */
+export function hasSummary(planFilePath: string): boolean {
+  return existsSync(planFilePath.replace(/-PLAN\.md$/, '-SUMMARY.md'));
+}
+
 // ── Interactive plan selector ─────────────────────────────────────────────────
 
 /**
  * Present an arrow-key selector when the user runs `forge build` with no args
- * and multiple plan files exist. Returns the selected PlanFile, or null if the
- * user cancels (Ctrl-C) or the environment is non-interactive.
+ * and plan files exist. Filters out already-built plans (SUMMARY exists),
+ * groups remaining plans as "ready" vs "blocked" based on dependency status,
+ * and shows dependency context in each choice's description.
  *
- * Falls back gracefully in non-TTY environments (CI, pipes) — returns null so
- * the caller can emit a helpful message instead of crashing.
+ * Returns the selected PlanFile, or null if no selectable plans remain
+ * or the user cancels (Ctrl-C).
  */
 export async function selectPlan(plans: PlanFile[]): Promise<PlanFile | null> {
   if (plans.length === 0) return null;
-  if (plans.length === 1) return plans[0]!;
 
-  const { select } = await import('@inquirer/prompts');
+  // Determine completion by checking for SUMMARY files
+  const completedSlugs = new Set<string>();
+  const pendingPlans: PlanFile[] = [];
 
-  const choices = plans.map(p => ({
-    name: `${path.basename(p.filePath).padEnd(45)} wave ${p.frontmatter.wave} · ${p.tasks.length} task${p.tasks.length === 1 ? '' : 's'}`,
-    value: p,
-    short: path.basename(p.filePath),
-  }));
+  for (const p of plans) {
+    if (hasSummary(p.filePath)) {
+      completedSlugs.add(p.frontmatter.slug);
+    } else {
+      pendingPlans.push(p);
+    }
+  }
+
+  const completedCount = plans.length - pendingPlans.length;
+
+  if (pendingPlans.length === 0) {
+    process.stdout.write(`[forge] All ${plans.length} plan(s) already built.\n`);
+    return null;
+  }
+
+  if (pendingPlans.length === 1) {
+    if (completedCount > 0) {
+      process.stdout.write(
+        `[forge] Auto-selecting ${path.basename(pendingPlans[0]!.filePath)} (${completedCount} already built)\n`
+      );
+    }
+    return pendingPlans[0]!;
+  }
+
+  // Classify pending plans as ready (all deps met) vs blocked (deps unmet)
+  const ready: PlanFile[] = [];
+  const blocked: { plan: PlanFile; unmetDeps: string[] }[] = [];
+
+  for (const p of pendingPlans) {
+    const unmet = p.frontmatter.depends_on.filter(d => !completedSlugs.has(d));
+    if (unmet.length === 0) {
+      ready.push(p);
+    } else {
+      blocked.push({ plan: p, unmetDeps: unmet });
+    }
+  }
+
+  // All pending plans have unmet deps — nothing selectable
+  if (ready.length === 0) {
+    process.stdout.write(`[forge] ${blocked.length} plan(s) pending but all have unmet dependencies:\n`);
+    for (const { plan: p, unmetDeps } of blocked) {
+      process.stdout.write(`  ${p.frontmatter.slug} → needs: ${unmetDeps.join(', ')}\n`);
+    }
+    if (completedCount > 0) {
+      process.stdout.write(`[forge] (${completedCount} plan(s) already built)\n`);
+    }
+    return null;
+  }
+
+  const { select, Separator } = await import('@inquirer/prompts');
+
+  // Build sectioned choice list — Separator + Choice objects
+  type SepInstance = InstanceType<typeof Separator>;
+  const choices: Array<
+    | { name: string; value: PlanFile; short: string; description?: string; disabled?: string }
+    | SepInstance
+  > = [];
+
+  choices.push(new Separator('── Ready to build ──────────────────────────'));
+  for (const p of ready) {
+    const deps = p.frontmatter.depends_on;
+    choices.push({
+      name: `${path.basename(p.filePath).padEnd(45)} wave ${p.frontmatter.wave} · ${p.tasks.length} task${p.tasks.length === 1 ? '' : 's'}`,
+      value: p,
+      short: path.basename(p.filePath),
+      description: deps.length > 0
+        ? `deps: ${deps.map(d => `✓ ${d}`).join(', ')}`
+        : 'no dependencies',
+    });
+  }
+
+  if (blocked.length > 0) {
+    choices.push(new Separator('── Waiting on dependencies ─────────────────'));
+    for (const { plan: p, unmetDeps } of blocked) {
+      const allDeps = p.frontmatter.depends_on;
+      choices.push({
+        name: `${path.basename(p.filePath).padEnd(45)} wave ${p.frontmatter.wave} · ${p.tasks.length} task${p.tasks.length === 1 ? '' : 's'}`,
+        value: p,
+        short: path.basename(p.filePath),
+        description: `deps: ${allDeps.map(d => unmetDeps.includes(d) ? `✗ ${d}` : `✓ ${d}`).join(', ')}`,
+        disabled: `needs: ${unmetDeps.join(', ')}`,
+      });
+    }
+  }
+
+  if (completedCount > 0) {
+    choices.push(new Separator(`── Already built (${completedCount}) ────────────────────────────`));
+  }
 
   try {
     return await select<PlanFile>({
-      message: 'Select a plan to build',
+      message: `Select a plan to build${completedCount > 0 ? ` (${completedCount} already complete)` : ''}`,
       choices,
     });
   } catch {
-    // NonInteractiveError or Ctrl-C
+    // Ctrl-C or non-interactive
+    process.stdout.write('[forge] No plan selected.\n');
     return null;
   }
 }
@@ -218,11 +344,10 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
       );
       return 1;
     }
-  } else if (!opts.dryRun && allPlans.length > 1) {
-    // Multiple plans, no file specified — present interactive selector
+  } else if (!opts.dryRun && allPlans.length >= 1) {
+    // Present interactive selector (filters out completed plans, shows deps)
     const selected = await selectPlan(allPlans);
     if (!selected) {
-      process.stdout.write('[forge] No plan selected.\n');
       return 0;
     }
     planPool = [selected];
@@ -431,6 +556,13 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
       path.join(stateDir, 'last-build.json'),
       JSON.stringify({ filesModified: buildState.filesModified, completedAt: new Date().toISOString() }, null, 2)
     );
+  }
+
+  // Update state.json with completed plan slugs so the dependency resolver
+  // knows which plans are done and can unblock downstream waves.
+  if (!buildState.blockedTask && buildState.completedTasks.length > 0) {
+    const completedSlugs = [...new Set(buildState.completedTasks.map(t => t.planSlug))];
+    updateStateFile(stateDir, completedSlugs);
   }
 
   // Print post-TUI summary
