@@ -82,11 +82,26 @@ export function formatSummary(state: BuildState, improveRan: boolean): string {
   return lines.join('\n');
 }
 
-// ── State file update ─────────────────────────────────────────────────────────
+// ── State file read/write ─────────────────────────────────────────────────────
 
-export function updateStateFile(stateDir: string, completedSlugs: string[]): void {
-  mkdirSync(stateDir, { recursive: true });
-  const stateFilePath = path.join(stateDir, 'state.json');
+/**
+ * Read completed plan slugs from .forge/state.json.
+ * Returns an empty set if the file doesn't exist or is malformed.
+ */
+export function loadCompletedSlugs(forgeDir: string): Set<string> {
+  const stateFilePath = path.join(forgeDir, 'state.json');
+  if (!existsSync(stateFilePath)) return new Set();
+  try {
+    const state = JSON.parse(readFileSync(stateFilePath, 'utf-8'));
+    const tasks = state?.build?.completed_tasks;
+    if (Array.isArray(tasks)) return new Set(tasks.filter((t: unknown) => typeof t === 'string'));
+  } catch { /* malformed — treat as empty */ }
+  return new Set();
+}
+
+export function updateStateFile(forgeDir: string, completedSlugs: string[]): void {
+  mkdirSync(forgeDir, { recursive: true });
+  const stateFilePath = path.join(forgeDir, 'state.json');
 
   let state: { phase: string; build: { completed_tasks: string[] } };
   if (existsSync(stateFilePath)) {
@@ -168,25 +183,36 @@ export function hasSummary(planFilePath: string): boolean {
 
 /**
  * Present an arrow-key selector when the user runs `forge build` with no args
- * and plan files exist. Filters out already-built plans (SUMMARY exists),
- * groups remaining plans as "ready" vs "blocked" based on dependency status,
- * and shows dependency context in each choice's description.
+ * and plan files exist. Filters out already-built plans (state.json or SUMMARY
+ * file), groups remaining plans as "ready" vs "blocked" based on dependency
+ * status, and shows dependency context in each choice's description.
  *
  * Returns the selected PlanFile, or null if no selectable plans remain
  * or the user cancels (Ctrl-C).
  */
-export async function selectPlan(plans: PlanFile[]): Promise<PlanFile | null> {
+export async function selectPlan(plans: PlanFile[], forgeDir: string): Promise<PlanFile | null> {
   if (plans.length === 0) return null;
 
-  // Determine completion by checking for SUMMARY files
-  const completedSlugs = new Set<string>();
+  // Determine completion from state.json + SUMMARY files (belt and suspenders)
+  const completedSlugs = loadCompletedSlugs(forgeDir);
   const pendingPlans: PlanFile[] = [];
 
   for (const p of plans) {
-    if (hasSummary(p.filePath)) {
+    if (completedSlugs.has(p.frontmatter.slug)) {
+      // already in set
+    } else if (hasSummary(p.filePath)) {
       completedSlugs.add(p.frontmatter.slug);
     } else {
       pendingPlans.push(p);
+    }
+  }
+
+  // Warn about suspicious dependency declarations (empty depends_on on wave > 1)
+  for (const p of plans) {
+    if (p.frontmatter.wave > 1 && p.frontmatter.depends_on.length === 0) {
+      process.stdout.write(
+        `[forge] WARNING: ${p.frontmatter.slug} (wave ${p.frontmatter.wave}) has no dependencies — verify this is intentional\n`
+      );
     }
   }
 
@@ -283,6 +309,69 @@ export async function selectPlan(plans: PlanFile[]): Promise<PlanFile | null> {
   }
 }
 
+// ── Build status ──────────────────────────────────────────────────────────
+
+/**
+ * Print build progress: which plans are complete, ready, or blocked.
+ * Reads state.json + SUMMARY files, cross-references with plan frontmatter.
+ */
+export function runBuildStatus(opts: { plansDir?: string; cwd?: string } = {}): number {
+  const cwd = opts.cwd ?? process.cwd();
+  const plansDir = opts.plansDir ?? path.join(cwd, '.forge', 'plans');
+  const forgeDir = path.join(cwd, '.forge');
+
+  if (!existsSync(plansDir)) {
+    process.stderr.write(`[forge] No plans directory found at ${plansDir}\n`);
+    return 1;
+  }
+
+  const { plans, skipped } = parsePlanFiles(plansDir);
+  if (plans.length === 0) {
+    process.stdout.write(`[forge] No plan files found in ${plansDir}\n`);
+    if (skipped.length > 0) {
+      process.stdout.write(`[forge] (${skipped.length} file(s) skipped)\n`);
+    }
+    return 0;
+  }
+
+  const completedSlugs = loadCompletedSlugs(forgeDir);
+
+  // Also check SUMMARY files as fallback
+  for (const p of plans) {
+    if (!completedSlugs.has(p.frontmatter.slug) && hasSummary(p.filePath)) {
+      completedSlugs.add(p.frontmatter.slug);
+    }
+  }
+
+  const completed = plans.filter(p => completedSlugs.has(p.frontmatter.slug));
+  const pending = plans.filter(p => !completedSlugs.has(p.frontmatter.slug));
+
+  process.stdout.write(`[forge] ${completed.length}/${plans.length} plans complete\n`);
+
+  // Sort all plans by wave then slug for consistent display
+  const sorted = [...plans].sort((a, b) =>
+    a.frontmatter.wave - b.frontmatter.wave || a.frontmatter.slug.localeCompare(b.frontmatter.slug)
+  );
+
+  for (const p of sorted) {
+    const slug = p.frontmatter.slug;
+    const wave = p.frontmatter.wave;
+
+    if (completedSlugs.has(slug)) {
+      process.stdout.write(`  ✓ ${slug} (wave ${wave})\n`);
+    } else {
+      const unmet = p.frontmatter.depends_on.filter(d => !completedSlugs.has(d));
+      if (unmet.length === 0) {
+        process.stdout.write(`  ○ ${slug} (wave ${wave}) — ready\n`);
+      } else {
+        process.stdout.write(`  ○ ${slug} (wave ${wave}) — blocked: ${unmet.join(', ')}\n`);
+      }
+    }
+  }
+
+  return 0;
+}
+
 // ── Build options ─────────────────────────────────────────────────────────────
 
 export interface BuildOptions {
@@ -299,7 +388,8 @@ export interface BuildOptions {
 export async function runBuild(opts: BuildOptions = {}): Promise<number> {
   const cwd = opts.cwd ?? process.cwd();
   const plansDir = opts.plansDir ?? path.join(cwd, '.forge', 'plans');
-  const stateDir = path.join(cwd, '.forge', 'state');
+  const forgeDir = path.join(cwd, '.forge');
+  const stateDir = path.join(forgeDir, 'state');
 
   // CLAUDECODE guard — fail fast before any file I/O or TUI initialization.
   // forge build cannot run inside an active Claude Code session.
@@ -346,7 +436,7 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
     }
   } else if (!opts.dryRun && allPlans.length >= 1) {
     // Present interactive selector (filters out completed plans, shows deps)
-    const selected = await selectPlan(allPlans);
+    const selected = await selectPlan(allPlans, forgeDir);
     if (!selected) {
       return 0;
     }
@@ -562,7 +652,7 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
   // knows which plans are done and can unblock downstream waves.
   if (!buildState.blockedTask && buildState.completedTasks.length > 0) {
     const completedSlugs = [...new Set(buildState.completedTasks.map(t => t.planSlug))];
-    updateStateFile(stateDir, completedSlugs);
+    updateStateFile(forgeDir, completedSlugs);
   }
 
   // Print post-TUI summary

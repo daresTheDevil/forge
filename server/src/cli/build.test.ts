@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { groupByWave, formatSummary, writeBlocker, hasSummary, updateStateFile } from './build.js';
+import { groupByWave, formatSummary, writeBlocker, hasSummary, updateStateFile, loadCompletedSlugs, runBuildStatus } from './build.js';
 import type { BuildState, TaskState } from './types.js';
 import path from 'node:path';
 import os from 'node:os';
@@ -142,6 +142,132 @@ describe('updateStateFile', () => {
     const state = JSON.parse(fs.readFileSync(path.join(tmpDir, 'state.json'), 'utf-8'));
     expect(state.phase).toBe('building');
     expect(state.build.completed_tasks).toEqual(['my-slug']);
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+});
+
+describe('loadCompletedSlugs', () => {
+  it('returns slugs from a valid state.json', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-load-'));
+    fs.writeFileSync(path.join(tmpDir, 'state.json'), JSON.stringify({
+      phase: 'building',
+      build: { completed_tasks: ['docker-compose-stack', 'drizzle-schema'] },
+    }));
+    const slugs = loadCompletedSlugs(tmpDir);
+    expect(slugs).toEqual(new Set(['docker-compose-stack', 'drizzle-schema']));
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('returns empty set when state.json does not exist', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-load-'));
+    expect(loadCompletedSlugs(tmpDir)).toEqual(new Set());
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('returns empty set for malformed state.json', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-load-'));
+    fs.writeFileSync(path.join(tmpDir, 'state.json'), 'not json');
+    expect(loadCompletedSlugs(tmpDir)).toEqual(new Set());
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('returns empty set when completed_tasks is not an array', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-load-'));
+    fs.writeFileSync(path.join(tmpDir, 'state.json'), JSON.stringify({
+      phase: 'building',
+      build: { completed_tasks: 'not-an-array' },
+    }));
+    expect(loadCompletedSlugs(tmpDir)).toEqual(new Set());
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('round-trips with updateStateFile', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-roundtrip-'));
+    updateStateFile(tmpDir, ['slug-a', 'slug-b']);
+    const slugs = loadCompletedSlugs(tmpDir);
+    expect(slugs).toEqual(new Set(['slug-a', 'slug-b']));
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+});
+
+describe('runBuildStatus', () => {
+  it('returns 1 when plans directory does not exist', () => {
+    const code = runBuildStatus({ plansDir: '/nonexistent/path', cwd: '/tmp' });
+    expect(code).toBe(1);
+  });
+
+  it('returns 0 and lists plan status', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-status-'));
+    const plansDir = path.join(tmpDir, '.forge', 'plans');
+    const forgeDir = path.join(tmpDir, '.forge');
+    fs.mkdirSync(plansDir, { recursive: true });
+
+    // Create two plans: wave 1 (completed) and wave 2 (pending)
+    const plan1 = `---
+phase: 1
+plan: 01
+slug: api-server
+type: feature
+wave: 1
+depends_on: []
+files_modified: []
+autonomous: true
+requirements: []
+must_haves: []
+---
+<tasks><task type="auto"><files>x.ts</files><action>x</action><verify>true</verify><done>done</done></task></tasks>
+`;
+    const plan2 = `---
+phase: 1
+plan: 02
+slug: frontend-ui
+type: feature
+wave: 2
+depends_on:
+  - api-server
+files_modified: []
+autonomous: true
+requirements: []
+must_haves: []
+---
+<tasks><task type="auto"><files>y.ts</files><action>y</action><verify>true</verify><done>done</done></task></tasks>
+`;
+    fs.writeFileSync(path.join(plansDir, '1-01-api-server-PLAN.md'), plan1);
+    fs.writeFileSync(path.join(plansDir, '2-02-frontend-ui-PLAN.md'), plan2);
+
+    // Mark api-server as completed in state.json
+    updateStateFile(forgeDir, ['api-server']);
+
+    const code = runBuildStatus({ plansDir, cwd: tmpDir });
+    expect(code).toBe(0);
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  it('shows ready status when all deps are met', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-status-'));
+    const plansDir = path.join(tmpDir, '.forge', 'plans');
+    const forgeDir = path.join(tmpDir, '.forge');
+    fs.mkdirSync(plansDir, { recursive: true });
+
+    const plan1 = `---
+phase: 1
+plan: 01
+slug: base-setup
+type: feature
+wave: 1
+depends_on: []
+files_modified: []
+autonomous: true
+requirements: []
+must_haves: []
+---
+<tasks><task type="auto"><files>x.ts</files><action>x</action><verify>true</verify><done>done</done></task></tasks>
+`;
+    fs.writeFileSync(path.join(plansDir, '1-01-base-setup-PLAN.md'), plan1);
+
+    // No state.json — plan should show as ready
+    const code = runBuildStatus({ plansDir, cwd: tmpDir });
+    expect(code).toBe(0);
     fs.rmSync(tmpDir, { recursive: true });
   });
 });
