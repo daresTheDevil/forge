@@ -30,6 +30,12 @@ describe('parseCliArgs', () => {
     expect(result.command).toBe('unknown');
     expect(result.raw).toBe('deploy');
   });
+
+  it('passes --status as an arg to the build command', () => {
+    const result = parseCliArgs(['build', '--status']);
+    expect(result.command).toBe('build');
+    expect(result.args).toEqual(['--status']);
+  });
 });
 
 describe('CLI module', () => {

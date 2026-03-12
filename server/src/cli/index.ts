@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import { runBuild } from './build.js';
+import { runBuild, runBuildStatus } from './build.js';
 import { runImproveCommand } from './improve.js';
 
 // ── Arg parsing (pure, exported for testing) ──────────────────────────────────
@@ -35,6 +35,7 @@ function printUsage(): void {
     'forge — AI development workflow\n\n' +
     'Usage:\n' +
     '  forge build                Run the autonomous build loop\n' +
+    '  forge build --status       Show build progress (completed/ready/blocked)\n' +
     '  forge improve [file ...]   Run the improve loop on specified files\n' +
     '  forge improve              Run the improve loop on last-build files\n\n' +
     'Inside Claude Code, use /forge:help to see all commands.\n'
@@ -59,16 +60,12 @@ if (isMain) {
   (async () => {
     switch (parsed.command) {
       case 'build': {
+        if (parsed.args.includes('--status')) {
+          process.exit(runBuildStatus());
+          break;
+        }
         const buildOpts = parsed.args[0] !== undefined ? { planFile: parsed.args[0] } : {};
         const code = await runBuild(buildOpts);
-        if (code === 0) {
-          // Auto-improve on files touched by the build (REQ-006). Non-fatal.
-          try {
-            await runImproveCommand([]);  // no args → reads last-build.json
-          } catch (err) {
-            process.stderr.write(`[forge] Improve pass failed (non-fatal): ${err instanceof Error ? err.message : String(err)}\n`);
-          }
-        }
         process.exit(code);
         break;
       }
