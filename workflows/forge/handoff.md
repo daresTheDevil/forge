@@ -8,7 +8,7 @@ This workflow is invoked by `/forge:handoff`.
 ## Step 1: Gather current state
 
 Read the following:
-- `.forge/state/current.md`
+- `.forge/state.json`
 - `.forge/plans/MANIFEST.md` (if exists)
 - All `.forge/plans/*-SUMMARY.md` files (completed plans)
 - All `.forge/plans/*-BLOCKED.md` files (blocked plans)
@@ -44,10 +44,10 @@ Write `.forge/state/sessions/[YYYY-MM-DD-HHMM]-handoff.md`:
 ```markdown
 # Session Handoff — [YYYY-MM-DD HH:MM]
 
-**Project**: [from state]
-**Task**: [current task from state]
-**Phase**: [current phase from state]
-**Active CR**: [from state, or "none"]
+**Project**: [from state.json task field, or directory name]
+**Task**: [task from state.json]
+**Phase**: [phase from state.json]
+**Active CR**: [cr_id from state.json, or "none"]
 
 ## What Was Accomplished This Session
 
@@ -104,18 +104,17 @@ Files that are relevant context for picking up this work:
 - [any other critical files]
 ```
 
-## Step 4: Update .forge/state/current.md
+## Step 4: Update .forge/state.json
 
-Update:
-- **Last action**: session handoff written — [timestamp]
-- **Next action**: run /forge:continue to resume
-- **Last updated**: [ISO timestamp]
+Update `.forge/state.json`: set `last_action` to `"session handoff written — [timestamp]"`,
+set `next_action` to `"run /forge:continue to resume"`,
+set `updated_at` to `"[ISO timestamp]"`.
 
 ## Step 5: Commit the handoff
 
 Stage and commit the handoff:
 ```
-git add .forge/state/
+git add .forge/state.json .forge/state/
 git commit -m "chore: session handoff [YYYY-MM-DD HH:MM]"
 ```
 

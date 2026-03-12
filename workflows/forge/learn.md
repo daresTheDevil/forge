@@ -21,7 +21,7 @@ Create `.forge/instincts/` if it does not exist.
 Read the following sources to reconstruct what happened this session:
 
 1. `.forge/compliance/audit-trail.md` — action history (last 30 entries)
-2. `.forge/state/current.md` — current task, phase, and last action
+2. `.forge/state.json` — current task (`task`), phase (`phase`), and last action (`last_action`)
 3. `.forge/plans/` — list all files; read any `*-SUMMARY.md` and `*-BLOCKED.md`
 4. `.forge/specs/` — list spec files; read the most recent one
 5. `.forge/instincts/` — list existing instinct filenames (to check for duplicates)

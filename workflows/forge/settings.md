@@ -45,7 +45,7 @@ Display the current effective configuration, showing the source of each value:
 ```
 FORGE SETTINGS
 ══════════════════════════════════════════════════
-Project: [project name from state/current.md or directory name]
+Project: [project name from state.json `task` field, or directory name]
 Config:  .forge/config.json
 
  SETTING                        VALUE           SOURCE

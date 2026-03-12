@@ -6,9 +6,10 @@ This workflow is invoked by `/forge:secure`.
 
 ## Step 1: Locate the project
 
-Read `.forge/state/current.md` to determine:
+Read `.forge/state.json` to determine:
 - The project root (current working directory)
-- The active Change Request ID (if any)
+- The active Change Request ID: `cr_id` field (if any)
+- The current phase: `phase` field
 
 Read `.forge/config.json` for any project-specific scan configuration.
 
@@ -76,10 +77,9 @@ Call `mcp__forge-tools__compliance_append_audit_trail` with:
 
 ## Step 7: Update state
 
-Update `.forge/state/current.md`:
-- **Last action**: security audit complete — [N] CRITICAL, [N] HIGH, [N] MEDIUM findings
-- **Next action**: [if CRITICAL: "resolve CRITICAL findings before release" | else: "run /forge:release when ready"]
-- **Last updated**: [ISO timestamp]
+Update `.forge/state.json`: set `last_action` to `"security audit complete — [N] CRITICAL, [N] HIGH, [N] MEDIUM findings"`,
+set `next_action` to `"[if CRITICAL: 'resolve CRITICAL findings before release' | else: 'run /forge:release when ready']"`,
+set `updated_at` to `"[ISO timestamp]"`.
 
 ## Step 8: Display results and verdict
 

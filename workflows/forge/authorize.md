@@ -6,7 +6,7 @@ This workflow is invoked by `/forge:authorize`.
 
 ## Step 1: Find and validate the plan
 
-Read `.forge/state/current.md` for the current task slug.
+Read `.forge/state.json` for the current task slug (field: `task`).
 
 Check `.forge/plans/MANIFEST.md` exists.
 
@@ -106,7 +106,7 @@ must be committed now, or they will not exist in the worktree.
 
 Stage and commit all plan and spec files:
 ```
-git add .forge/plans/ .forge/specs/ .forge/state/current.md .forge/compliance/
+git add .forge/plans/ .forge/specs/ .forge/state.json .forge/compliance/
 git commit -m "chore(plan): commit plan files for [CR-ID]"
 ```
 
@@ -121,14 +121,16 @@ git worktree add .claude/worktrees/[CR-ID] -b forge/[CR-ID]
 
 Tell the user: "Worktree created at .claude/worktrees/[CR-ID]/ on branch forge/[CR-ID]"
 
-## Step 8: Update state and hand off to terminal build loop
+## Step 8: Update state, write registry, and hand off to terminal build loop
 
-Update `.forge/state/current.md`:
-- **Current phase**: build-authorized
-- **Active change request**: [CR-ID]
-- **Last action**: build authorized — [CR-ID] created, worktree ready
-- **Next action**: run `forge build` from a terminal to execute the build loop
-- **Last updated**: [ISO timestamp]
+Update `.forge/state.json`: set `phase` to `"build-authorized"`, set `cr_id` to `"[CR-ID]"`, set `last_action` to `"build authorized — [CR-ID] created, worktree ready"`, set `next_action` to `"run forge build from a terminal to execute the build loop"`, set `updated_at` to `"[ISO timestamp]"`.
+
+Write `.forge/registry.json` — add the new CR entry to the `crs` array:
+```json
+{ "id": "[CR-ID]", "branch": "forge/[CR-ID]", "worktree": ".claude/worktrees/[CR-ID]", "created_at": "[ISO timestamp]" }
+```
+If `.forge/registry.json` does not exist, create it with `{ "version": 1, "crs": [ <entry> ] }`.
+If it already exists, read it, append the new entry to `crs`, and write it back.
 
 Tell the user:
 ```

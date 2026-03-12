@@ -77,16 +77,16 @@ Remediation for FAIL: `Run /forge:map to initialize the audit trail`
 
 ### CHECK 4: Current state file
 
-Check `.forge/state/current.md`:
+Check `.forge/state.json`:
 
-Required fields (lines starting with `**`):
-- `**Project**`
-- `**Current phase**`
-- `**Last action**`
-- `**Next action**`
+Required JSON fields:
+- `version`
+- `phase`
+- `updated_at`
+- `build`
 
-**PASS**: File exists and all required fields are present.
-**WARN**: File exists but one or more fields are missing or blank.
+**PASS**: File exists, is valid JSON, and all required fields are present.
+**WARN**: File exists but one or more fields are missing or the JSON is malformed.
 **FAIL**: File does not exist.
 
 Remediation for FAIL: `Run /forge:map to initialize the state file`
@@ -197,7 +197,7 @@ Display all results:
 ```
 FORGE HEALTH CHECK
 ══════════════════════════════════════════════════
-Project: [project name from state/current.md or directory name]
+Project: [task from state.json, or directory name]
 Checked: [ISO timestamp]
 
  CHECK                        RESULT    NOTES

@@ -7,7 +7,7 @@ This workflow is invoked by `/forge:plan`.
 
 ## Step 1: Find the approved spec
 
-Read `.forge/state/current.md` for the current task slug.
+Read `.forge/state.json` for the current task slug (field: `task`).
 
 Look for `.forge/specs/[task-slug]-SPEC.md`.
 
@@ -222,11 +222,7 @@ Requirements covered: [full list of all REQ-NNNs]
 
 Delete `.forge/plans/_EXAMPLE-PLAN.md` now that planning is complete.
 
-Update `.forge/state/current.md`:
-- **Current phase**: plan
-- **Last action**: plan validated — [N] plans, [N] waves
-- **Next action**: run /forge:authorize to authorize and begin implementation
-- **Last updated**: [ISO timestamp]
+Update `.forge/state.json`: set `phase` to `"plan"`, set `last_action` to `"plan validated — [N] plans, [N] waves"`, set `next_action` to `"run /forge:authorize to authorize and begin implementation"`, set `updated_at` to `"[ISO timestamp]"`.
 
 Append to `.forge/compliance/audit-trail.md`:
 ```
