@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { groupByWave, formatSummary, writeBlocker, hasSummary, updateStateFile, loadCompletedSlugs, runBuildStatus } from './build.js';
+import { groupByWave, formatSummary, writeBlocker, hasSummary, runBuildStatus } from './build.js';
+import { updateStateFile } from './state.js';
 import type { BuildState, TaskState } from './types.js';
 import path from 'node:path';
 import os from 'node:os';
@@ -112,83 +113,7 @@ describe('writeBlocker', () => {
   });
 });
 
-describe('updateStateFile', () => {
-  it('creates state.json with completed slugs and phase=building', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-state-'));
-    updateStateFile(tmpDir, ['docker-compose-stack']);
-    const state = JSON.parse(fs.readFileSync(path.join(tmpDir, 'state.json'), 'utf-8'));
-    expect(state.phase).toBe('building');
-    expect(state.build.completed_tasks).toEqual(['docker-compose-stack']);
-    fs.rmSync(tmpDir, { recursive: true });
-  });
-
-  it('appends to existing completed_tasks without duplicates', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-state-'));
-    const stateFile = path.join(tmpDir, 'state.json');
-    fs.writeFileSync(stateFile, JSON.stringify({
-      phase: 'building',
-      build: { completed_tasks: ['api-server'] },
-    }));
-    updateStateFile(tmpDir, ['api-server', 'docker-compose-stack']);
-    const state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
-    expect(state.build.completed_tasks).toEqual(['api-server', 'docker-compose-stack']);
-    fs.rmSync(tmpDir, { recursive: true });
-  });
-
-  it('recovers from malformed state.json', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-state-'));
-    fs.writeFileSync(path.join(tmpDir, 'state.json'), 'not json');
-    updateStateFile(tmpDir, ['my-slug']);
-    const state = JSON.parse(fs.readFileSync(path.join(tmpDir, 'state.json'), 'utf-8'));
-    expect(state.phase).toBe('building');
-    expect(state.build.completed_tasks).toEqual(['my-slug']);
-    fs.rmSync(tmpDir, { recursive: true });
-  });
-});
-
-describe('loadCompletedSlugs', () => {
-  it('returns slugs from a valid state.json', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-load-'));
-    fs.writeFileSync(path.join(tmpDir, 'state.json'), JSON.stringify({
-      phase: 'building',
-      build: { completed_tasks: ['docker-compose-stack', 'drizzle-schema'] },
-    }));
-    const slugs = loadCompletedSlugs(tmpDir);
-    expect(slugs).toEqual(new Set(['docker-compose-stack', 'drizzle-schema']));
-    fs.rmSync(tmpDir, { recursive: true });
-  });
-
-  it('returns empty set when state.json does not exist', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-load-'));
-    expect(loadCompletedSlugs(tmpDir)).toEqual(new Set());
-    fs.rmSync(tmpDir, { recursive: true });
-  });
-
-  it('returns empty set for malformed state.json', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-load-'));
-    fs.writeFileSync(path.join(tmpDir, 'state.json'), 'not json');
-    expect(loadCompletedSlugs(tmpDir)).toEqual(new Set());
-    fs.rmSync(tmpDir, { recursive: true });
-  });
-
-  it('returns empty set when completed_tasks is not an array', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-load-'));
-    fs.writeFileSync(path.join(tmpDir, 'state.json'), JSON.stringify({
-      phase: 'building',
-      build: { completed_tasks: 'not-an-array' },
-    }));
-    expect(loadCompletedSlugs(tmpDir)).toEqual(new Set());
-    fs.rmSync(tmpDir, { recursive: true });
-  });
-
-  it('round-trips with updateStateFile', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forge-roundtrip-'));
-    updateStateFile(tmpDir, ['slug-a', 'slug-b']);
-    const slugs = loadCompletedSlugs(tmpDir);
-    expect(slugs).toEqual(new Set(['slug-a', 'slug-b']));
-    fs.rmSync(tmpDir, { recursive: true });
-  });
-});
+// Note: updateStateFile and loadCompletedSlugs are tested in state.test.ts
 
 describe('runBuildStatus', () => {
   it('returns 1 when plans directory does not exist', () => {

@@ -5,7 +5,7 @@ This workflow is invoked by `/forge:continue`.
 
 ## Step 1: Check for active state
 
-Check if `.forge/state/current.md` exists.
+Check if `.forge/state.json` exists.
 
 If it does not exist:
   Tell the user:
@@ -15,7 +15,7 @@ If it does not exist:
   ```
   Stop.
 
-Read `.forge/state/current.md` completely.
+Read `.forge/state.json` completely. Reference fields: `phase`, `task`, `cr_id`, `last_action`, `next_action`, `updated_at`.
 
 ## Step 2: Check for blockers
 
@@ -55,14 +55,14 @@ Display the full situation report:
 
 ```
 ═══════════════════════════════════════════════════════════
-FORGE STATUS — [project name from state/current.md]
+FORGE STATUS — [from state.json task field, or directory name]
 ═══════════════════════════════════════════════════════════
 
-Current Task   : [from state]
-Current Phase  : [from state]
-Last Action    : [from state]
-Last Updated   : [from state]
-Active CR      : [from state, or "none"]
+Current Task   : [task from state.json]
+Current Phase  : [phase from state.json]
+Last Action    : [last_action from state.json]
+Last Updated   : [updated_at from state.json]
+Active CR      : [cr_id from state.json, or "none"]
 
 Recent Activity:
   [git log output — 10 commits, one per line]
@@ -81,8 +81,8 @@ Blockers:
 
 ## Step 6: Route to next step
 
-Read the `**Next action**:` field from `.forge/state/current.md`.
-Read the `**Current phase**:` field.
+Read the `next_action` field from `.forge/state.json`.
+Read the `phase` field from `.forge/state.json`.
 
 Provide specific routing guidance based on the phase:
 

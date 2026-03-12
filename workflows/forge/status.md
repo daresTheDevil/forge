@@ -6,7 +6,7 @@ This workflow is invoked by `/forge:status`.
 
 ## Read the following files
 
-1. `.forge/state/current.md` — current task, phase, last action, next action
+1. `.forge/state.json` — current task, phase, cr_id, last_action, next_action
 2. `.forge/plans/MANIFEST.md` — plan summary (if exists)
 3. Check for any `.forge/plans/*-BLOCKED.md` files
 4. Run: `git branch --list 'forge/*'` for active worktrees
@@ -15,26 +15,36 @@ This workflow is invoked by `/forge:status`.
 
 ## Display
 
-If `.forge/state/current.md` does not exist:
+If `.forge/state.json` does not exist:
   ```
   No forge state found. Run /forge:map to initialize this project.
   ```
   Stop.
 
+Read `.forge/state.json` and reference fields: `phase`, `task`, `cr_id`, `last_action`, `next_action`, `updated_at`.
+
+After reading state.json, check if `.claude/worktrees/` exists with subdirectories. If so, for each
+worktree subdirectory, read its `.forge/state.json` for build progress (specifically `build.completed_plans`
+and `build.blocked_plan`). Show aggregated status across all worktrees.
+
 Otherwise display:
 
 ```
 FORGE STATUS — [project name]
-Last updated: [from state]
+Last updated: [updated_at from state.json]
 
-Task    : [current task, or "none"]
-Phase   : [current phase, or "none"]
-CR      : [active change request, or "none"]
+Task    : [task from state.json, or "none"]
+Phase   : [phase from state.json, or "none"]
+CR      : [cr_id from state.json, or "none"]
 
-Last action : [last action from state]
-Next action : [next action from state]
+Last action : [last_action from state.json]
+Next action : [next_action from state.json]
 
 Blockers : [none | list with plan-id]
+
+[If worktrees found:]
+Worktrees:
+  [worktree name]: [completed_plans count] plans complete[, BLOCKED: [blocked_plan] if set]
 
 Open PRs:
   [PR number]: [title] — [branch] | "none"

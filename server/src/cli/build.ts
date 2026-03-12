@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
@@ -7,6 +7,17 @@ import { spawnClaude, buildTaskPrompt } from './spawn.js';
 import { runImprove } from './improve.js';
 import { createTui } from './tui.js';
 import { attachDisplay } from './display.js';
+import {
+  loadState,
+  loadCompletedSlugs,
+  updateStateFile,
+  acquireBuildLock,
+  releaseBuildLock,
+  findRootRepo,
+  isWorktree,
+  discoverWorktrees,
+  migrateFromCurrentMd,
+} from './state.js';
 import type { BuildState, PlanFile, TaskState } from './types.js';
 
 // ── Pure helpers (exported for testing) ──────────────────────────────────────
@@ -80,51 +91,6 @@ export function formatSummary(state: BuildState, improveRan: boolean): string {
   lines.push('');
   lines.push('─'.repeat(50));
   return lines.join('\n');
-}
-
-// ── State file read/write ─────────────────────────────────────────────────────
-
-/**
- * Read completed plan slugs from .forge/state.json.
- * Returns an empty set if the file doesn't exist or is malformed.
- */
-export function loadCompletedSlugs(forgeDir: string): Set<string> {
-  const stateFilePath = path.join(forgeDir, 'state.json');
-  if (!existsSync(stateFilePath)) return new Set();
-  try {
-    const state = JSON.parse(readFileSync(stateFilePath, 'utf-8'));
-    const tasks = state?.build?.completed_tasks;
-    if (Array.isArray(tasks)) return new Set(tasks.filter((t: unknown) => typeof t === 'string'));
-  } catch { /* malformed — treat as empty */ }
-  return new Set();
-}
-
-export function updateStateFile(forgeDir: string, completedSlugs: string[]): void {
-  mkdirSync(forgeDir, { recursive: true });
-  const stateFilePath = path.join(forgeDir, 'state.json');
-
-  let state: { phase: string; build: { completed_tasks: string[] } };
-  if (existsSync(stateFilePath)) {
-    try {
-      state = JSON.parse(readFileSync(stateFilePath, 'utf-8'));
-      if (!Array.isArray(state.build?.completed_tasks)) {
-        state.build = { completed_tasks: [] };
-      }
-    } catch {
-      state = { phase: 'building', build: { completed_tasks: [] } };
-    }
-  } else {
-    state = { phase: 'building', build: { completed_tasks: [] } };
-  }
-
-  state.phase = 'building';
-  for (const slug of completedSlugs) {
-    if (!state.build.completed_tasks.includes(slug)) {
-      state.build.completed_tasks.push(slug);
-    }
-  }
-
-  writeFileSync(stateFilePath, JSON.stringify(state, null, 2) + '\n');
 }
 
 // ── Async verify helper ───────────────────────────────────────────────────────
@@ -309,30 +275,21 @@ export async function selectPlan(plans: PlanFile[], forgeDir: string): Promise<P
   }
 }
 
-// ── Build status ──────────────────────────────────────────────────────────
+// ── Build status (single context) ────────────────────────────────────────────
 
 /**
- * Print build progress: which plans are complete, ready, or blocked.
- * Reads state.json + SUMMARY files, cross-references with plan frontmatter.
+ * Print plan status for a single .forge/ context (root or worktree).
+ * Returns the number of completed plans, or -1 if plans dir missing.
  */
-export function runBuildStatus(opts: { plansDir?: string; cwd?: string } = {}): number {
-  const cwd = opts.cwd ?? process.cwd();
-  const plansDir = opts.plansDir ?? path.join(cwd, '.forge', 'plans');
-  const forgeDir = path.join(cwd, '.forge');
+function printPlanStatus(
+  label: string,
+  plansDir: string,
+  forgeDir: string,
+): number {
+  if (!existsSync(plansDir)) return -1;
 
-  if (!existsSync(plansDir)) {
-    process.stderr.write(`[forge] No plans directory found at ${plansDir}\n`);
-    return 1;
-  }
-
-  const { plans, skipped } = parsePlanFiles(plansDir);
-  if (plans.length === 0) {
-    process.stdout.write(`[forge] No plan files found in ${plansDir}\n`);
-    if (skipped.length > 0) {
-      process.stdout.write(`[forge] (${skipped.length} file(s) skipped)\n`);
-    }
-    return 0;
-  }
+  const { plans } = parsePlanFiles(plansDir);
+  if (plans.length === 0) return -1;
 
   const completedSlugs = loadCompletedSlugs(forgeDir);
 
@@ -343,12 +300,19 @@ export function runBuildStatus(opts: { plansDir?: string; cwd?: string } = {}): 
     }
   }
 
-  const completed = plans.filter(p => completedSlugs.has(p.frontmatter.slug));
-  const pending = plans.filter(p => !completedSlugs.has(p.frontmatter.slug));
+  const completedCount = plans.filter(p => completedSlugs.has(p.frontmatter.slug)).length;
 
-  process.stdout.write(`[forge] ${completed.length}/${plans.length} plans complete\n`);
+  // Load full state for phase and metadata
+  const state = loadState(forgeDir);
+  const blocked = state.build.blocked_plan;
 
-  // Sort all plans by wave then slug for consistent display
+  if (label) {
+    process.stdout.write(`\n${label}  ${state.phase.toUpperCase()}  ${completedCount}/${plans.length}\n`);
+  } else {
+    process.stdout.write(`[forge] ${completedCount}/${plans.length} plans complete\n`);
+  }
+
+  // Sort by wave then slug
   const sorted = [...plans].sort((a, b) =>
     a.frontmatter.wave - b.frontmatter.wave || a.frontmatter.slug.localeCompare(b.frontmatter.slug)
   );
@@ -359,6 +323,8 @@ export function runBuildStatus(opts: { plansDir?: string; cwd?: string } = {}): 
 
     if (completedSlugs.has(slug)) {
       process.stdout.write(`  ✓ ${slug} (wave ${wave})\n`);
+    } else if (slug === blocked) {
+      process.stdout.write(`  ✗ ${slug} (wave ${wave}) — BLOCKED\n`);
     } else {
       const unmet = p.frontmatter.depends_on.filter(d => !completedSlugs.has(d));
       if (unmet.length === 0) {
@@ -367,6 +333,78 @@ export function runBuildStatus(opts: { plansDir?: string; cwd?: string } = {}): 
         process.stdout.write(`  ○ ${slug} (wave ${wave}) — blocked: ${unmet.join(', ')}\n`);
       }
     }
+  }
+
+  return completedCount;
+}
+
+// ── Build status (public entry point) ────────────────────────────────────────
+
+/**
+ * Print build progress: which plans are complete, ready, or blocked.
+ * Handles three modes:
+ * 1. Inside a worktree — show this worktree's state
+ * 2. Root with worktrees — show all worktree states
+ * 3. Simple project (no worktrees) — show root state
+ *
+ * When no state.json exists but current.md does, offers migration hint.
+ */
+export function runBuildStatus(opts: { plansDir?: string; cwd?: string } = {}): number {
+  const cwd = opts.cwd ?? process.cwd();
+  const forgeDir = path.join(cwd, '.forge');
+
+  // Mode 1: Running inside a worktree — show just this context
+  if (isWorktree(cwd)) {
+    const plansDir = opts.plansDir ?? path.join(forgeDir, 'plans');
+    const root = findRootRepo(cwd);
+    if (root) {
+      process.stdout.write(`[forge] Worktree: ${path.basename(cwd)} (root: ${root})\n`);
+    }
+    const result = printPlanStatus('', plansDir, forgeDir);
+    if (result === -1) {
+      process.stderr.write(`[forge] No plans directory found at ${plansDir}\n`);
+      return 1;
+    }
+    return 0;
+  }
+
+  // Mode 2: Root with worktrees — show aggregated status
+  const worktrees = discoverWorktrees(cwd);
+  if (worktrees.length > 0) {
+    process.stdout.write(`[forge] ${worktrees.length} active worktree(s)\n`);
+
+    for (const wt of worktrees) {
+      const wtPlansDir = path.join(wt.path, '.forge', 'plans');
+      const wtForgeDir = path.join(wt.path, '.forge');
+      printPlanStatus(wt.name, wtPlansDir, wtForgeDir);
+    }
+
+    return 0;
+  }
+
+  // Mode 3: Simple project — show root state
+  const plansDir = opts.plansDir ?? path.join(forgeDir, 'plans');
+
+  // Migration hint: if state.json doesn't exist but current.md does
+  if (!existsSync(path.join(forgeDir, 'state.json'))) {
+    const migrated = migrateFromCurrentMd(forgeDir);
+    if (migrated && migrated.phase !== 'none') {
+      process.stdout.write(
+        `[forge] Found legacy state in .forge/state/current.md (phase: ${migrated.phase})\n` +
+        `[forge] Run a build to establish proper state tracking.\n\n`
+      );
+    }
+  }
+
+  if (!existsSync(plansDir)) {
+    process.stderr.write(`[forge] No plans directory found at ${plansDir}\n`);
+    return 1;
+  }
+
+  const result = printPlanStatus('', plansDir, forgeDir);
+  if (result === -1) {
+    process.stdout.write(`[forge] No plan files found in ${plansDir}\n`);
+    return 0;
   }
 
   return 0;
@@ -399,6 +437,18 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
       '[forge] Open a separate terminal outside Claude Code and run: forge build\n'
     );
     return 1;
+  }
+
+  // BUILD.lock — prevent two forge build instances on the same context
+  if (!opts.dryRun) {
+    const lock = acquireBuildLock(stateDir);
+    if (!lock.acquired) {
+      process.stderr.write(
+        `[forge] Another forge build is running (PID ${lock.existingPid}). Exiting.\n` +
+        `[forge] If this is stale, delete .forge/state/BUILD.lock and retry.\n`
+      );
+      return 1;
+    }
   }
 
   // Check plans directory exists
@@ -637,6 +687,7 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
 
   } finally {
     tui.destroy();
+    releaseBuildLock(stateDir);
   }
 
   // Write last-build.json for `forge improve` with no args
@@ -648,11 +699,16 @@ export async function runBuild(opts: BuildOptions = {}): Promise<number> {
     );
   }
 
-  // Update state.json with completed plan slugs so the dependency resolver
-  // knows which plans are done and can unblock downstream waves.
-  if (!buildState.blockedTask && buildState.completedTasks.length > 0) {
-    const completedSlugs = [...new Set(buildState.completedTasks.map(t => t.planSlug))];
-    updateStateFile(forgeDir, completedSlugs);
+  // Update state.json with completed plan slugs and build metadata
+  const completedSlugs = [...new Set(buildState.completedTasks.map(t => t.planSlug))];
+  if (buildState.blockedTask) {
+    // Record partial progress + blocked plan
+    updateStateFile(forgeDir, completedSlugs, {
+      blocked: buildState.blockedTask.planSlug,
+    });
+  } else if (completedSlugs.length > 0) {
+    // Successful build — record all completed, clear any prior blocker
+    updateStateFile(forgeDir, completedSlugs, { blocked: null });
   }
 
   // Print post-TUI summary

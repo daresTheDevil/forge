@@ -82,20 +82,20 @@ Git history provides the tamper-evident retention (90-day requirement: commit th
 | [ISO timestamp of now] | project:initialized | forge | - |
 ```
 
-## Step 6: Initialize .forge/state/current.md if missing
+## Step 6: Initialize .forge/state.json if missing
 
-If `.forge/state/current.md` does not exist, create it with:
-```markdown
-# Current State
-**Project**: [project name — get from package.json or directory name]
-**Last updated**: [ISO timestamp of now]
-**Current task**: none
-**Current phase**: none
-**Last action**: project initialized
-**Next action**: run /forge:map to initialize the project map
-**Blockers**: none
-**Open PRs**: none
-**Active change request**: none
+If `.forge/state.json` does not exist, create it with:
+```json
+{
+  "version": 2,
+  "phase": "none",
+  "cr_id": null,
+  "task": null,
+  "last_action": "project initialized",
+  "next_action": "run /forge:recon to start a task",
+  "updated_at": "[ISO timestamp of now]",
+  "build": { "completed_plans": [], "blocked_plan": null, "last_build_at": null }
+}
 ```
 
 ## Step 7: Spawn forge-mapper agent

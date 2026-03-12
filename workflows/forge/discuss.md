@@ -7,9 +7,9 @@ This workflow is invoked by `/forge:discuss`.
 
 ## Step 1: Load context
 
-Read `.forge/state/current.md` to get the current task description.
+Read `.forge/state.json` to get the current task description (field: `task`).
 
-If `current.md` does not exist or `Current task` is "none":
+If `.forge/state.json` does not exist or `task` is `null`:
   Tell the user:
   ```
   No active task found. Run /forge:recon [task description] first.
@@ -156,11 +156,7 @@ Write `.forge/discuss/[task-slug]-discuss.md`:
 
 ## Step 7: Update state and tell user what to do next
 
-Update `.forge/state/current.md`:
-- **Current phase**: discuss
-- **Last action**: discuss phase complete — [N] decisions locked
-- **Next action**: run /forge:spec to create the requirements document
-- **Last updated**: [ISO timestamp of now]
+Update `.forge/state.json`: set `phase` to `"discuss"`, set `last_action` to `"discuss phase complete — [N] decisions locked"`, set `next_action` to `"run /forge:spec to create the requirements document"`, set `updated_at` to `"[ISO timestamp of now]"`.
 
 Tell the user:
 ```

@@ -7,12 +7,12 @@ deployment authorization. No deployment happens without the human typing 'deploy
 
 ## Step 1: Load state and validate readiness
 
-Read `.forge/state/current.md`. Extract:
-- `Current phase` — must be `pr-open` (otherwise tell user what to do next)
-- `Active change request` — the CR-ID
-- `Open PRs` — the PR URL
+Read `.forge/state.json`. Extract:
+- `phase` — must be `pr-open` (otherwise tell user what to do next)
+- `cr_id` — the CR-ID
+- `next_action` — the PR URL (stored here after Gate 2)
 
-If phase is not `pr-open`:
+If `phase` is not `pr-open`:
   Show what phase we're in and what the user should do first.
   Stop.
 
@@ -171,24 +171,18 @@ Call `mcp__forge-tools__compliance_append_audit_trail` with:
 ]
 ```
 
-## Step 10: Clean up worktree
+## Step 10: Clean up worktree and registry
 
 Remove the worktree (branch was deleted by `--delete-branch` in Step 6):
 ```
 git worktree remove .claude/worktrees/[CR-ID] 2>/dev/null || true
 ```
 
+Remove the CR entry from `.forge/registry.json`: read the file, remove the entry where `id` equals `"[CR-ID]"` from the `crs` array, and write it back.
+
 ## Step 11: Update state and tell user
 
-Update `.forge/state/current.md`:
-- **Current phase**: released
-- **Current plan**: none
-- **Last action**: released v[VERSION] — [CR-ID]
-- **Next action**: run /forge:map to update the project map
-- **Blockers**: none
-- **Open PRs**: none
-- **Active change request**: none
-- **Last updated**: [ISO timestamp]
+Update `.forge/state.json`: set `phase` to `"released"`, set `cr_id` to `null`, set `last_action` to `"released v[VERSION] — [CR-ID]"`, set `next_action` to `"run /forge:map to update the project map"`, set `updated_at` to `"[ISO timestamp]"`, set `build` to `{ "completed_plans": [], "blocked_plan": null, "last_build_at": null }`.
 
 Tell the user:
 ```

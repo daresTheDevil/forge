@@ -7,12 +7,12 @@ review before merge. No code merges without the human reviewing and approving.
 
 ## Step 1: Load current state
 
-Read `.forge/state/current.md`. Extract:
-- `Current phase` — must be `build-complete` (if not, stop and tell user to run `/forge:authorize` first)
-- `Active change request` — the CR-ID
-- `Worktree branch` — should be `forge/[CR-ID]`
+Read `.forge/state.json`. Extract:
+- `phase` — must be `build-complete` (if not, stop and tell user to run `/forge:authorize` first)
+- `cr_id` — the CR-ID
+- `build.last_build_at` — timestamp of the completed build
 
-If phase is not `build-complete`:
+If `phase` is not `build-complete`:
 ```
 No completed build found.
 
@@ -171,13 +171,7 @@ Append to audit trail:
 
 ## Step 8: Update state and tell user
 
-Update `.forge/state/current.md`:
-- **Current phase**: pr-open
-- **Active change request**: [CR-ID]
-- **Last action**: PR created — [PR URL]
-- **Next action**: Run /forge:secure then /forge:release to deploy
-- **Open PRs**: [PR URL]
-- **Last updated**: [ISO timestamp]
+Update `.forge/state.json`: set `phase` to `"pr-open"`, set `cr_id` to `"[CR-ID]"`, set `last_action` to `"PR created — [PR URL]"`, set `next_action` to `"Run /forge:secure then /forge:release to deploy — PR: [PR URL]"`, set `updated_at` to `"[ISO timestamp]"`.
 
 Tell the user:
 ```

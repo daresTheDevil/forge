@@ -66,14 +66,13 @@ is the task description converted to kebab-case (max 40 characters).
 
 Example: "add CSV export for user management report" → `add-csv-export-for-user-management-recon.md`
 
-## Step 7: Update .forge/state/current.md
+## Step 7: Update .forge/state.json
 
-Update these fields in `.forge/state/current.md`:
-- **Current task**: [task description from $ARGUMENTS]
-- **Current phase**: recon
-- **Last action**: recon completed — [N] relevant files found
-- **Next action**: run /forge:discuss to start the structured conversation
-- **Last updated**: [ISO timestamp of now]
+Update `.forge/state.json`: set `task` to `"[task description from $ARGUMENTS]"`,
+set `phase` to `"recon"`,
+set `last_action` to `"recon completed — [N] relevant files found"`,
+set `next_action` to `"run /forge:discuss to start the structured conversation"`,
+set `updated_at` to `"[ISO timestamp of now]"`.
 
 ## Step 8: Tell the user what to do next
 

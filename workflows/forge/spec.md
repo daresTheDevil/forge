@@ -7,7 +7,7 @@ This workflow is invoked by `/forge:spec`.
 
 ## Step 1: Load the discussion artifact
 
-Read `.forge/state/current.md` to get the current task description and slug.
+Read `.forge/state.json` to get the current task description and slug (fields: `task`).
 
 Look for `.forge/discuss/[task-slug]-discuss.md`.
 
@@ -115,11 +115,7 @@ Append to `.forge/compliance/audit-trail.md`:
 | [ISO timestamp] | spec:approved | [user] | [task-slug]-SPEC.md |
 ```
 
-Update `.forge/state/current.md`:
-- **Current phase**: spec
-- **Last action**: spec approved — [task-slug]-SPEC.md
-- **Next action**: run /forge:plan to create the implementation graph
-- **Last updated**: [ISO timestamp]
+Update `.forge/state.json`: set `phase` to `"spec"`, set `last_action` to `"spec approved — [task-slug]-SPEC.md"`, set `next_action` to `"run /forge:plan to create the implementation graph"`, set `updated_at` to `"[ISO timestamp]"`.
 
 Tell the user:
 ```
@@ -145,10 +141,7 @@ Then proceed with the approve flow above.
 ### If user selects "Back to discuss":
 
 Tell the user: "OK. Run /forge:discuss to revisit the decisions."
-Update `.forge/state/current.md`:
-- **Current phase**: discuss
-- **Last action**: returned to discuss from spec
-- **Next action**: run /forge:discuss
+Update `.forge/state.json`: set `phase` to `"discuss"`, set `last_action` to `"returned to discuss from spec"`, set `next_action` to `"run /forge:discuss"`, set `updated_at` to `"[ISO timestamp]"`.
 
 ### If user says the spec is missing something:
 

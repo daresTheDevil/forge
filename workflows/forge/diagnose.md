@@ -42,14 +42,14 @@ Read the following files if they exist:
 - `.forge/map/infra.md` — system topology, services, ports, dependencies
 - `.forge/map/stack.md` — tech stack, test runner, build tools
 - `.forge/map/conventions.md` — project conventions
-- `.forge/state/current.md` — current forge phase and last action
+- `.forge/state.json` — current forge phase (`phase`) and last action (`last_action`)
 
 Summarize what was loaded:
 ```
 Context loaded:
   Infrastructure:  [found | not found — /forge:map to generate]
   Stack:           [found | not found]
-  Current phase:   [phase from state, or "none"]
+  Current phase:   [phase from state.json, or "none"]
 ```
 
 ## Step 3: Spawn forge-debugger agent
@@ -66,7 +66,7 @@ The agent:
 3. States a hypothesis at each layer before gathering evidence
 4. Stops at the first confirmed suspect and reports it
 5. Does NOT modify any files — read-only investigation
-6. Writes `.forge/state/diagnose-[YYYY-MM-DD-HH-slug].md`
+6. Writes `.forge/diagnose-[YYYY-MM-DD-HH-slug].md`
 
 Wait for the agent to complete.
 
@@ -110,5 +110,5 @@ Diagnosis inconclusive. Options:
 
 If user selected "Yes, root cause found", append to `.forge/compliance/audit-trail.md`:
 ```
-| [ISO timestamp] | diagnose:complete | forge | [failure_description] → .forge/state/diagnose-[slug].md |
+| [ISO timestamp] | diagnose:complete | forge | [failure_description] → .forge/diagnose-[slug].md |
 ```

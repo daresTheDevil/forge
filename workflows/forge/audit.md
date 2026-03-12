@@ -7,7 +7,7 @@ every requirement has a passing test. Output is the artifact a CNGC auditor read
 
 ## Step 1: Load the spec
 
-Read `.forge/state/current.md` for the active CR-ID and task slug.
+Read `.forge/state.json` for the active CR-ID (`cr_id` field) and task slug (`task` field).
 
 Read the spec file: `.forge/specs/[task-slug]-SPEC.md`
 
@@ -113,10 +113,7 @@ Append to `.forge/compliance/audit-trail.md`:
 
 ## Step 6: Update state
 
-Update `.forge/state/current.md`:
-- **Last action**: audit complete — [N] PASS, [N] FAIL, [N] NOT-TESTED
-- **Next action**: [if all pass: "run /forge:release" | else: "fix failing requirements"]
-- **Last updated**: [ISO timestamp]
+Update `.forge/state.json`: set `last_action` to `"audit complete — [N] PASS, [N] FAIL, [N] NOT-TESTED"`, set `next_action` to `"run /forge:release"` (if all pass) or `"fix failing requirements"` (if any fail or not-tested), and set `updated_at` to the current ISO timestamp.
 
 ## Step 7: Display results
 

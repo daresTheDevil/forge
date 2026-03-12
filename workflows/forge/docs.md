@@ -25,7 +25,7 @@ Run /forge:map to set up the .forge/ directory structure.
 ```
 Stop.
 
-Read `.forge/state/current.md` to get the project name and any active CR-ID.
+Read `.forge/state.json` to get the project name (`task` field) and any active CR-ID (`cr_id` field).
 
 ---
 
@@ -271,7 +271,7 @@ Use the exact template below, filling in all bracketed values from the data coll
 ```markdown
 # Technical Implementation and Compliance Summary (TICS)
 
-**Project**: [project name from state/current.md or directory name]
+**Project**: [from state.json task field, or directory name]
 **Generated**: [ISO timestamp]
 **Standard**: NIGC 25 CFR 543.20 — Management Information Systems Controls
 **Period covered**: [audit_trail_start] — [audit_trail_end, or "present"]
@@ -520,10 +520,9 @@ Append to `.forge/compliance/audit-trail.md`:
 
 ## Step 9: Update state
 
-Update `.forge/state/current.md`:
-- **Last action**: TICS generated — [posture], [N] gaps
-- **Next action**: [if COMPLIANT: "TICS ready for auditor review" | if gaps: "resolve compliance gaps then regenerate TICS"]
-- **Last updated**: [ISO timestamp]
+Update `.forge/state.json`: set `last_action` to `"TICS generated — [posture], [N] gaps"`,
+set `next_action` to `"[if COMPLIANT: 'TICS ready for auditor review' | if gaps: 'resolve compliance gaps then regenerate TICS']"`,
+set `updated_at` to `"[ISO timestamp]"`.
 
 ---
 
